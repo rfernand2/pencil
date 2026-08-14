@@ -114,6 +114,61 @@
     }
   });
 
+  /* 1b — the other ace, on burgundy felt ---------------------------------- */
+  B.push({
+    id: "diamond", name: "Ace of diamonds", w: 900, h: 1260, tone: "light",
+    region: { x: 13, y: 15, w: 74, h: 70 },
+    features: [
+      { id: "pip", kind: "motif", x: 50, y: 44, r: 10.5, weight: 3.2, label: "the diamond pip", note: "a big red diamond pip printed in the middle of the card" },
+      { id: "corner", kind: "motif", x: 11, y: 8, r: 4.5, weight: 0.5, label: "the corner pip", note: "the small red A and diamond printed in the top corner" },
+      { id: "border", kind: "frame", x: 6, y: 4, w: 88, h: 92, weight: 0.7, label: "the card border", note: "the rounded double border of the card" }
+    ],
+    render: function (g, w, h) {
+      var lg = g.createRadialGradient(w / 2, h * 0.4, 40, w / 2, h / 2, h * 0.8);
+      lg.addColorStop(0, "#6d2230"); lg.addColorStop(1, "#33101a");
+      g.fillStyle = lg; g.fillRect(0, 0, w, h);
+      grain(g, w, h, 6000, 0.06, true);
+
+      var m = 34, cw = w - m * 2, ch = h - m * 2;
+      shadow(g, function () {
+        g.fillStyle = "#fbf8f1";
+        roundRect(g, m, m, cw, ch, 40);
+        g.fill();
+      }, 42, 16, "rgba(0,0,0,0.5)");
+      g.strokeStyle = "rgba(0,0,0,0.10)"; g.lineWidth = 2;
+      roundRect(g, m, m, cw, ch, 40); g.stroke();
+      g.strokeStyle = "rgba(150,30,40,0.20)"; g.lineWidth = 2;
+      roundRect(g, m + 22, m + 22, cw - 44, ch - 44, 26); g.stroke();
+
+      /* a diamond with very slightly bowed sides, the way they are printed */
+      function diamond(cx, cy, s) {
+        var wq = s * 0.62, hq = s;
+        g.fillStyle = "#c0202c";
+        g.beginPath();
+        g.moveTo(cx, cy - hq);
+        g.quadraticCurveTo(cx + wq * 0.42, cy - hq * 0.42, cx + wq, cy);
+        g.quadraticCurveTo(cx + wq * 0.42, cy + hq * 0.42, cx, cy + hq);
+        g.quadraticCurveTo(cx - wq * 0.42, cy + hq * 0.42, cx - wq, cy);
+        g.quadraticCurveTo(cx - wq * 0.42, cy - hq * 0.42, cx, cy - hq);
+        g.closePath(); g.fill();
+      }
+
+      g.fillStyle = "#c0202c";
+      g.font = "bold 76px Georgia, serif";
+      g.textAlign = "center"; g.textBaseline = "top";
+      g.fillText("A", m + 62, m + 40);
+      diamond(m + 62, m + 168, 34);
+      diamond(w / 2, h * 0.44, 132);
+      g.save();
+      g.translate(w - m - 62, h - m - 40); g.rotate(Math.PI);
+      g.font = "bold 76px Georgia, serif";
+      g.textAlign = "center"; g.textBaseline = "top";
+      g.fillStyle = "#c0202c"; g.fillText("A", 0, 0);
+      diamond(0, 128, 34);
+      g.restore();
+    }
+  });
+
   /* 2 — taped sketchbook page -------------------------------------------- */
   B.push({
     id: "sketchbook", name: "Sketchbook page", w: 1240, h: 940, tone: "light",

@@ -215,6 +215,57 @@
   });
 
   riff({
+    id: "kite", kinds: ["motif"], tags: ["kite", "wind", "fly", "sky", "string", "spring", "play"],
+    story: "flew %s like a kite",
+    draw: function (S, f, pal) {
+      var rnd = S.rnd;
+      /* spars across the pip, so it reads as the kite itself */
+      S.line(f.x, f.y - f.r * 1.05, f.x, f.y + f.r * 1.05, { color: pal.ink, width: 0.2, speed: 110, alpha: 0.8 });
+      S.line(f.x - f.r * 0.85, f.y - f.r * 0.1, f.x + f.r * 0.85, f.y - f.r * 0.1,
+        { color: pal.ink, width: 0.2, speed: 110, alpha: 0.8 });
+
+      /* the string, sagging away to one side */
+      var dir = (f.pctX || 50) > 50 ? -1 : 1;
+      var sx = f.x, sy = f.y + f.r * 1.1;
+      var ex = f.x + dir * f.r * 2.6, ey = f.y + f.r * 5.4;
+      var pts = [];
+      for (var i = 0; i <= 24; i++) {
+        var t = i / 24;
+        pts.push([sx + (ex - sx) * t + dir * Math.sin(t * Math.PI) * f.r * 0.9,
+        sy + (ey - sy) * t]);
+      }
+      S.curve(pts, { color: pal.ink, width: 0.2, speed: 80 });
+
+      /* bows along the tail */
+      for (var k = 4; k < 22; k += 5) {
+        var p = pts[k], q = pts[k + 1];
+        var a = Math.atan2(q[1] - p[1], q[0] - p[0]) + Math.PI / 2;
+        var bw = f.r * 0.26;
+        S.stroke([{ x: p[0] - Math.cos(a) * bw, y: p[1] - Math.sin(a) * bw },
+        { x: p[0], y: p[1] },
+        { x: p[0] + Math.cos(a) * bw, y: p[1] + Math.sin(a) * bw }],
+          { color: pal.accent[0], width: 0.26, speed: 110 });
+      }
+
+      /* whoever is holding it */
+      var hx = pts[24][0], hy = pts[24][1];
+      S.circle(hx, hy + f.r * 0.5, f.r * 0.3, { n: 14, color: pal.ink, width: 0.26, speed: 70 });
+      S.line(hx, hy + f.r * 0.8, hx, hy + f.r * 1.8, { color: pal.ink, width: 0.28, speed: 90 });
+      S.line(hx, hy + f.r * 1.0, hx - dir * f.r * 0.5, hy + f.r * 0.4, { color: pal.ink, width: 0.24, speed: 100 });
+      S.line(hx, hy + f.r * 1.0, hx + dir * f.r * 0.45, hy + f.r * 1.4, { color: pal.ink, width: 0.24, speed: 100 });
+      S.line(hx, hy + f.r * 1.8, hx - f.r * 0.4, hy + f.r * 2.5, { color: pal.ink, width: 0.26, speed: 100 });
+      S.line(hx, hy + f.r * 1.8, hx + f.r * 0.4, hy + f.r * 2.5, { color: pal.ink, width: 0.26, speed: 100 });
+      S.line(hx - f.r * 1.4, hy + f.r * 2.55, hx + f.r * 1.4, hy + f.r * 2.5,
+        { color: pal.ink, width: 0.28, speed: 90 });
+      grass(S, hx - f.r * 0.9, hy + f.r * 2.52, f.r * 0.3, pal, 5);
+      grass(S, hx + f.r * 0.9, hy + f.r * 2.5, f.r * 0.3, pal, 5);
+
+      M.cloud.draw(S, f.x - dir * f.r * 2.4, f.y - f.r * 1.9, f.r * 0.85, pal);
+      M.bird.draw(S, f.x + dir * f.r * 2.6, f.y - f.r * 1.2, f.r * 0.5, pal);
+    }
+  });
+
+  riff({
     id: "sprout", kinds: ["motif", "disc"], tags: ["vine", "leaf", "botanical", "plant", "grow", "jungle"],
     story: "let vines climb out of %s",
     draw: function (S, f, pal) {

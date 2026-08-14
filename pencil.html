@@ -853,7 +853,7 @@
       ).then(function (yes) {
         if (!yes) { if (reopen) openBackgrounds(); return null; }
         return STORE.setPref("hiddenFactory", []).then(STORE.clearBackgrounds).then(function () {
-          return buildSurfaces({ text: "Back to the 10 factory pictures.", kind: "ok" });
+          return buildSurfaces({ text: "Back to the " + BACKGROUNDS.length + " factory pictures.", kind: "ok" });
         }).then(function () { if (reopen) openBackgrounds(); });
       });
     }).catch(function (e) { say(String(e.message || e), "err"); });

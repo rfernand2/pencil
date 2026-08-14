@@ -21,10 +21,10 @@ Everything above that is new:
 | File | What it does |
 | --- | --- |
 | `js/engine.js` | The action list, the `Sketch` drawing vocabulary, the animation player, PNG re-render |
-| `js/backgrounds.js` | The ten pictures, drawn procedurally onto a canvas; each declares its white-space rectangle |
+| `js/backgrounds.js` | The eleven pictures, drawn procedurally onto a canvas; each declares its white-space rectangle |
 | `js/motifs.js` | 52 hand-coded motifs (trees, cats, lighthouses, mandalas…) with tags for keyword matching |
 | `js/strokefont.js` | A single-stroke alphabet, so the pencil can hand-letter a word |
-| `js/riffs.js` | 22 ways to build on a feature of the picture — the heart of it |
+| `js/riffs.js` | 23 ways to build on a feature of the picture — the heart of it |
 | `js/compose.js` | Picture features + keywords → a plan → actions |
 | `js/ai.js` | Optional: an LLM designs the strokes instead, at run time |
 | `js/store.js` | Everything kept on this machine — gallery, uploads, preferences |
@@ -44,8 +44,8 @@ models were handed an ace of clubs and asked to *"be creative and draw inside th
 using the card as inspo"*. Drawing something unrelated in the blank middle misses it.
 
 So every picture declares its **features**: the club pip, a coffee ring, the ruled lines,
-a fold crease, the hills on the horizon, a wax seal, the blank canvas in a frame. 28 of
-them across the ten pictures, each with a weight saying how interesting it is to build on —
+a fold crease, the hills on the horizon, a wax seal, the blank canvas in a frame. 31 of
+them across the eleven pictures, each with a weight saying how interesting it is to build on —
 the card's pip beats the card's border even though the border is far bigger.
 
 `js/riffs.js` then holds ways to build on a feature, keyed by what kind of thing it is:
@@ -53,7 +53,7 @@ the card's pip beats the card's border even though the border is far bigger.
 | The picture has… | …so the drawing might |
 | --- | --- |
 | a round thing (coffee ring, postmark, cup) | make it a sun, a hot-air balloon, a bicycle wheel, a ringed planet, a pond with a fish |
-| a printed emblem (the club pip) | grow a trunk under it, hang a basket from it, plant clover beneath it, let vines climb out |
+| a printed emblem (a card pip) | grow a trunk under it, hang a basket from it, fly it as a kite, plant clover beneath it, let vines climb out |
 | ruled lines | turn them into a sea with a boat riding one, a stave with notes on it, a fence, rain |
 | a strong edge (horizon, fold, seam) | peg washing along it, walk a cat down it, stand a town on it, sail a boat on it |
 | a rectangle (canvas, label, stamp box) | make it a window with curtains, a doorway with a path, something climbing in |
@@ -67,11 +67,11 @@ The AI designers get the same information: the prompt lists what is printed on t
 with coordinates, and asks the model to build on one of them so the result *could not have
 been drawn on any other picture*.
 
-## The ten pictures
+## The eleven pictures
 
-Each was chosen (and drawn) for having a large, calm area to draw into: an ace-of-clubs
-playing card, a taped sketchbook page, a ruled notebook, a vintage postcard, a linen
-napkin on a dark desk, sky over hills, a snowfield, a framed blank canvas, a kraft
+Each was chosen (and drawn) for having a large, calm area to draw into: the ace of clubs
+and the ace of diamonds, a taped sketchbook page, a ruled notebook, a vintage postcard, a
+linen napkin on a dark desk, sky over hills, a snowfield, a framed blank canvas, a kraft
 envelope, and a blueprint sheet. The blueprint is dark, so the pencil switches to white.
 
 Uploaded pictures have no declared features, so they get a free-standing drawing.
@@ -121,7 +121,7 @@ the keywords, when it was made, and how many ops survived validation.
 
 Uploaded pictures are kept too, so they're still there next time. Each picture in the
 picker has a **✕**: it deletes your uploads, and hides factory pictures. **Reset to factory
-pictures** brings all ten back and clears your uploads (it asks first).
+pictures** brings them all back and clears your uploads (it asks first).
 
 Storage is **IndexedDB**, not `localStorage` — the latter caps out around 5MB and only holds
 strings, which a handful of full-size drawings would blow straight through. Drawings are
