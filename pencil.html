@@ -393,6 +393,9 @@
       <div class="lbl"><span>Drawing speed</span><span id="speedVal">1.0×</span></div>
       <input type="range" id="speed" min="0.3" max="6" step="0.1" value="1.4" />
     </section>
+
+    <!-- Draw belongs with the settings it acts on, not with the after-the-fact controls -->
+    <button class="primary" id="draw" style="width:100%;margin-top:16px">✎ &nbsp;Draw</button>
   </div>
 
   <div id="gap"></div>
@@ -412,7 +415,6 @@
   </div>
 
   <div id="actions">
-    <button class="primary" id="draw">✎ &nbsp;Draw</button>
     <div class="row">
       <button id="skip">Finish now</button>
       <button id="again">Redraw</button>
@@ -1149,18 +1151,19 @@
     var t = AI.TIERS[tierIdx];
     $("modalSub").innerHTML = "<b>" + label + "</b> · " + t.label + " · " + model;
     $("modalHint").textContent = t.hint;
-    $("clock").textContent = "0.0s";
+    $("clock").textContent = "0s";
     $("modal").classList.add("show");
     $("cancel").focus();
     var t0 = performance.now();
     var timer = setInterval(function () {
       var s = (performance.now() - t0) / 1000;
+      /* whole seconds — tenths just flicker */
       $("clock").textContent = s < 60
-        ? s.toFixed(1) + "s"
-        : Math.floor(s / 60) + "m " + (s % 60).toFixed(0) + "s";
+        ? Math.floor(s) + "s"
+        : Math.floor(s / 60) + "m " + String(Math.floor(s % 60)) + "s";
       if (s > 25 && s < 26) $("modalHint").textContent = "Still going — bigger models think for a while.";
       if (s > 90 && s < 91) $("modalHint").textContent = "This one is taking its time. Cancel any time.";
-    }, 100);
+    }, 200);
     return timer;
   }
 
