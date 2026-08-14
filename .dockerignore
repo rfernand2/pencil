@@ -1,0 +1,21 @@
+# The image is public-ish: the key file must never be baked into it.
+# Deployed copies read keys from Fly secrets and proxy through server.js.
+js/keys.local.js
+
+.git
+.gitignore
+.github
+.fly
+node_modules
+*.log
+_*.html
+run.bat
+README.md
+Dockerfile
+.dockerignore
+
+# The earlier one-off experiments this app grew out of
+t.html
+t_flash.html
+t_grok.html
+ace.jpg

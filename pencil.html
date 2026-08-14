@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pencil — draw on a picture</title>
+<style>
+  :root {
+    --bg: #14161a;
+    --panel: #1c1f25;
+    --panel-2: #232730;
+    --line: #333945;
+    --text: #e9e6df;
+    --dim: #9aa1ad;
+    --accent: #e8b45c;
+    --accent-2: #6fb2d2;
+    --btn: #2b313b;
+    --btn-hi: #39414e;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.45 "Segoe UI", system-ui, -apple-system, sans-serif;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* ---------- shared hit-target rule for every button ---------- */
+  button, .btn {
+    font: inherit;
+    color: var(--text);
+    background: var(--btn);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 34px;
+    transition: background .12s, border-color .12s, transform .06s;
+  }
+  button:hover:not(:disabled), .btn:hover { background: var(--btn-hi); border-color: #4a5364; }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.icon { width: 34px; min-width: 34px; padding: 0; }
+  button.primary {
+    background: linear-gradient(180deg, #f0c273, #d99b3e);
+    border-color: #b57d28;
+    color: #241a08;
+    font-weight: 650;
+    min-height: 44px;
+    font-size: 15px;
+  }
+  button.primary:hover:not(:disabled) { background: linear-gradient(180deg, #f6cd85, #e2a747); }
+  button.on { background: #4a3a1c; border-color: var(--accent); color: #ffdda0; }
+
+  /* ---------- sidebar ---------- */
+  #side {
+    width: 342px;
+    min-width: 342px;
+    height: 100%;
+    background: var(--panel);
+    border-right: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+  }
+  #side header {
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid var(--line);
+    display: flex; align-items: baseline; gap: 8px;
+  }
+  #side header h1 { font-size: 17px; font-weight: 650; letter-spacing: .2px; }
+  #side header span { color: var(--dim); font-size: 12px; }
+  #scroll { flex: 1; overflow-y: auto; padding: 14px 16px 8px; }
+  section { margin-bottom: 20px; }
+  .lbl {
+    font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--dim); margin-bottom: 8px; display: flex;
+    align-items: center; justify-content: space-between; gap: 8px;
+  }
+
+  #picks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .pick {
+    position: relative; aspect-ratio: 4/3; border-radius: 8px; overflow: hidden;
+    border: 2px solid transparent; background: var(--panel-2); cursor: pointer; padding: 0;
+    min-height: 0;
+  }
+  .pick img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .pick.sel { border-color: var(--accent); }
+  .pick .cap {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: rgba(10,10,12,.72); color: #f0ece2;
+    font-size: 10px; padding: 3px 4px; text-align: center;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .pick.load { display: grid; place-items: center; color: var(--dim); font-size: 11px; }
+
+  #chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    font-size: 12.5px; padding: 5px 10px; min-height: 28px; border-radius: 999px;
+    background: var(--panel-2); border: 1px solid var(--line);
+  }
+  .chip.on { background: #3c3320; border-color: var(--accent); color: #ffdda0; }
+
+  input[type=text] {
+    width: 100%; font: inherit; color: var(--text);
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 8px; padding: 9px 11px; margin-top: 8px;
+  }
+  input[type=text]:focus { outline: none; border-color: var(--accent-2); }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; }
+  .seg { display: flex; gap: 6px; flex-wrap: wrap; }
+  .seg button { flex: 1 1 auto; font-size: 12.5px; padding: 7px 8px; }
+
+  #actions {
+    padding: 12px 16px 14px; border-top: 1px solid var(--line);
+    background: var(--panel); display: flex; flex-direction: column; gap: 9px;
+  }
+  #bar { height: 4px; background: var(--panel-2); border-radius: 3px; overflow: hidden; }
+  #bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .1s linear; }
+  #status { font-size: 12px; color: var(--dim); min-height: 17px; }
+  #status.err { color: #f09a8a; }
+  #status.ok { color: #9fd28a; }
+
+  /* ---------- stage ---------- */
+  #stage { flex: 1; display: grid; place-items: center; padding: 20px; min-width: 0; }
+  #frame { position: relative; line-height: 0; box-shadow: 0 18px 50px rgba(0,0,0,.55); border-radius: 3px; overflow: hidden; }
+  #frame img { display: block; user-select: none; -webkit-user-drag: none; }
+  #ink, #cur { position: absolute; left: 0; top: 0; pointer-events: none; }
+  #regionBox {
+    position: absolute; border: 1px dashed rgba(255,255,255,.55);
+    background: rgba(255,255,255,.06); pointer-events: none; display: none;
+  }
+  #empty { color: var(--dim); text-align: center; }
+
+  /* ---------- depth slider ---------- */
+  #depthWrap { margin-top: 10px; }
+  #depthWrap.off { opacity: .4; pointer-events: none; }
+  #depth { margin: 2px 0 0; }
+  .ticks { display: flex; justify-content: space-between; font-size: 11px; color: var(--dim); margin-top: 1px; }
+  .ticks span { flex: 1; text-align: center; }
+  .ticks span:first-child { text-align: left; }
+  .ticks span:last-child { text-align: right; }
+  .ticks span.on { color: var(--accent); font-weight: 600; }
+
+  /* ---------- designing modal ---------- */
+  #modal {
+    position: fixed; inset: 0; z-index: 50;
+    background: rgba(8,9,12,.72);
+    display: none; place-items: center;
+    backdrop-filter: blur(2px);
+  }
+  #modal.show { display: grid; }
+  #modalCard {
+    width: min(380px, calc(100vw - 40px));
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 22px 22px 18px;
+    box-shadow: 0 24px 70px rgba(0,0,0,.6);
+    text-align: center;
+  }
+  #modalTitle { font-size: 17px; font-weight: 650; margin-bottom: 4px; }
+  #modalSub { font-size: 12.5px; color: var(--dim); margin-bottom: 16px; }
+  #modalSub b { color: var(--text); font-weight: 600; }
+  #clock {
+    font: 600 30px/1 "Segoe UI", system-ui, sans-serif;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent); margin-bottom: 4px;
+  }
+  #modalHint { font-size: 11.5px; color: var(--dim); min-height: 16px; margin-bottom: 16px; }
+  .dots { display: flex; gap: 6px; justify-content: center; margin-bottom: 14px; }
+  .dots i {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--btn-hi);
+    animation: pulse 1.1s ease-in-out infinite;
+  }
+  .dots i:nth-child(2) { animation-delay: .16s; }
+  .dots i:nth-child(3) { animation-delay: .32s; }
+  .dots i:nth-child(4) { animation-delay: .48s; }
+  @keyframes pulse { 0%,100% { background: var(--btn-hi); transform: scale(1); }
+                     40% { background: var(--accent); transform: scale(1.45); } }
+  #cancel { width: 100%; }
+
+  /* ---------- pictures: delete + factory reset ---------- */
+  .pick .del {
+    position: absolute; top: 3px; right: 3px;
+    width: 20px; min-width: 20px; height: 20px; min-height: 20px;
+    padding: 0; font-size: 12px; line-height: 1; border-radius: 6px;
+    /* solid, visible hit target at rest — never a bare glyph */
+    background: rgba(255,255,255,.10);
+    border: 1px solid rgba(255,255,255,.16);
+    color: #fff;
+  }
+  .pick .del:hover { background: rgba(200,60,50,.85); border-color: rgba(255,140,130,.7); }
+
+  /* ---------- gallery ---------- */
+  #gal { position: fixed; inset: 0; z-index: 40; background: var(--bg); display: none; }
+  #gal.show { display: flex; flex-direction: column; }
+  #galBar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  #galBar h2 { font-size: 16px; font-weight: 650; margin-right: auto; }
+  #galBar .meta { color: var(--dim); font-size: 12px; }
+  #galBody { flex: 1; display: flex; min-height: 0; }
+  #galGrid {
+    flex: 1; overflow-y: auto; padding: 14px;
+    display: grid; gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    align-content: start;
+  }
+  .card {
+    position: relative; background: var(--panel); border: 2px solid var(--line);
+    border-radius: 10px; overflow: hidden; cursor: pointer; padding: 0; min-height: 0;
+    display: block; text-align: left;
+  }
+  .card.sel { border-color: var(--accent); }
+  .card.active { outline: 2px solid var(--accent-2); outline-offset: 1px; }
+  .card img { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; background: #000; }
+  .card .t { padding: 6px 8px; font-size: 12px; color: var(--text); }
+  .card .t small { display: block; color: var(--dim); font-size: 10.5px; }
+  .card .tick {
+    position: absolute; top: 6px; left: 6px; width: 22px; height: 22px;
+    border-radius: 6px; background: rgba(20,22,26,.8); border: 1px solid rgba(255,255,255,.25);
+    display: grid; place-items: center; color: transparent; font-size: 13px; font-weight: 700;
+  }
+  .card.sel .tick { background: var(--accent); border-color: var(--accent); color: #241a08; }
+  #galSide {
+    width: 320px; min-width: 320px; border-left: 1px solid var(--line);
+    background: var(--panel); padding: 14px; overflow-y: auto;
+  }
+  #galSide img { width: 100%; border-radius: 8px; background: #000; margin-bottom: 12px; }
+  #galSide dl { display: grid; grid-template-columns: 88px 1fr; gap: 6px 10px; font-size: 12.5px; }
+  #galSide dt { color: var(--dim); }
+  #galSide dd { word-break: break-word; }
+  #galEmpty { margin: auto; color: var(--dim); text-align: center; padding: 40px; }
+  @media (max-width: 780px) {
+    #galBody { flex-direction: column; }
+    #galSide { width: auto; min-width: 0; border-left: none; border-top: 1px solid var(--line); max-height: 44vh; }
+  }
+
+  @media (max-width: 820px) {
+    body { flex-direction: column; overflow: auto; }
+    #side { width: 100%; min-width: 0; height: auto; border-right: none; border-bottom: 1px solid var(--line); }
+    #scroll { max-height: 46vh; }
+    #stage { min-height: 52vh; }
+  }
+</style>
+</head>
+<body>
+
+<div id="side">
+  <header>
+    <h1>Pencil</h1>
+    <span>draws on your picture</span>
+  </header>
+
+  <div id="scroll">
+    <section>
+      <div class="lbl">
+        <span>1 · Pick a picture</span>
+        <button class="btn" id="uploadBtn" style="font-size:11px;min-height:26px;padding:3px 9px;">Upload…</button>
+      </div>
+      <div id="picks"></div>
+      <input type="file" id="file" accept="image/*" hidden />
+      <button id="resetPics" style="width:100%;margin-top:8px;font-size:12px;min-height:30px">Reset to factory pictures</button>
+    </section>
+
+    <section>
+      <div class="lbl">
+        <span>2 · Keywords</span>
+        <button class="btn" id="surprise" style="font-size:11px;min-height:26px;padding:3px 9px;">Surprise me</button>
+      </div>
+      <div id="chips"></div>
+      <input type="text" id="kw" placeholder="…or type your own, e.g. “a whale over the city”" />
+    </section>
+
+    <section>
+      <div class="lbl"><span>Drawing speed</span><span id="speedVal">1.0×</span></div>
+      <input type="range" id="speed" min="0.3" max="6" step="0.1" value="1.4" />
+      <div class="row" style="margin-top:10px">
+        <button id="regionBtn">Show drawing area</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="actions">
+    <div class="lbl" style="margin-bottom:0"><span>3 · Who designs it</span></div>
+    <div class="seg" id="designer"></div>
+    <div id="depthWrap">
+      <input type="range" id="depth" min="0" max="2" step="1" value="1" list="depthTicks" />
+      <datalist id="depthTicks"><option value="0"></option><option value="1"></option><option value="2"></option></datalist>
+      <div class="ticks" id="depthTickLabels"></div>
+    </div>
+    <div style="font-size:11.5px;color:var(--dim);margin-top:-2px" id="designerNote"></div>
+    <button class="primary" id="draw">✎ &nbsp;Draw</button>
+    <div class="row">
+      <button id="skip">Finish now</button>
+      <button id="again">Redraw</button>
+      <button id="clear">Clear</button>
+    </div>
+    <div class="row">
+      <button id="save">Save PNG</button>
+      <button id="keep">★ Save to gallery</button>
+    </div>
+    <button id="openGal">Gallery</button>
+    <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--dim);cursor:pointer">
+      <input type="checkbox" id="autosave" style="accent-color:var(--accent);width:15px;height:15px" />
+      Save every finished drawing automatically
+    </label>
+    <div id="bar"><i></i></div>
+    <div id="status">Ready.</div>
+  </div>
+</div>
+
+<div id="stage">
+  <div id="frame">
+    <img id="pic" alt="" />
+    <canvas id="ink"></canvas>
+    <canvas id="cur"></canvas>
+    <div id="regionBox"></div>
+  </div>
+</div>
+
+<div id="gal" role="dialog" aria-modal="true" aria-labelledby="galTitle">
+  <div id="galBar">
+    <h2 id="galTitle">Gallery</h2>
+    <span class="meta" id="galMeta"></span>
+    <button id="galAll">Select all</button>
+    <button id="galDown">Download</button>
+    <button id="galDel">Delete</button>
+    <button id="galClose" class="icon" title="Close gallery">✕</button>
+  </div>
+  <div id="galBody">
+    <div id="galGrid"></div>
+    <div id="galSide"></div>
+  </div>
+</div>
+
+<div id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div id="modalCard">
+    <div id="modalTitle">Designing your drawing…</div>
+    <div id="modalSub"></div>
+    <div class="dots"><i></i><i></i><i></i><i></i></div>
+    <div id="clock">0.0s</div>
+    <div id="modalHint"></div>
+    <button id="cancel">Cancel</button>
+  </div>
+</div>
+
+<script src="js/models.js"></script>
+<script src="js/store.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/strokefont.js"></script>
+<script src="js/motifs.js"></script>
+<script src="js/backgrounds.js"></script>
+<script src="js/compose.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/keys.local.js" onerror="window.PENCIL_KEYS=window.PENCIL_KEYS||{}"></script>
+<script>
+(function () {
+  "use strict";
+
+  var $ = function (id) { return document.getElementById(id); };
+  var pic = $("pic"), frame = $("frame"), stage = $("stage");
+  var statusEl = $("status"), barEl = $("bar").firstElementChild;
+
+  var CHIPS = ["tree", "cat", "ocean", "mountains", "stars", "flowers", "birds", "city",
+    "moon", "rocket", "coffee", "music", "rain", "whale", "castle", "bicycle",
+    "garden", "snow", "butterfly", "lighthouse", "dragon", "cosmos", "cozy", "magic"];
+
+  var state = {
+    surface: null,        // {name, tone, region, url, natW, natH}
+    chips: [],
+    designer: "local",
+    tier: "balanced",
+    drawing: false,
+    lastPlan: null
+  };
+
+  var pending = null;     // { controller, timer, t0 } while a model is thinking
+
+  var player = new PX.Player({
+    img: pic, ink: $("ink"), cur: $("cur"), frame: frame,
+    onProgress: function (p) { barEl.style.width = (p * 100).toFixed(1) + "%"; },
+    onDone: function () {
+      state.drawing = false;
+      setBusy(false);
+      say(state.lastPlan ? "Finished — " + state.lastPlan : "Finished.", "ok");
+      if ($("autosave").checked && !savedThis) {
+        keepDrawing(true).then(function (rec) {
+          if (rec) say("Finished — " + rec.title + " (saved to gallery).", "ok");
+        });
+      }
+    }
+  });
+
+  function say(msg, kind) {
+    statusEl.textContent = msg;
+    statusEl.className = kind || "";
+  }
+
+  function setBusy(b) {
+    $("draw").disabled = b;
+    $("draw").textContent = b ? "…drawing" : "✎  Draw";
+  }
+
+  /* ---------- picture picker ---------- */
+
+  var picks = $("picks");
+
+  /* `note` wins over the default message — the picture loads asynchronously, so
+     whatever the caller wanted to say has to be said after onload or it is lost. */
+  function selectSurface(s, el, note) {
+    state.surface = s;
+    Array.prototype.forEach.call(picks.children, function (c) { c.classList.remove("sel"); });
+    if (el) el.classList.add("sel");
+    player.stop();
+    lastResult = null;
+    pic.onload = function () {
+      state.surface.natW = pic.naturalWidth;
+      state.surface.natH = pic.naturalHeight;
+      player.layout();
+      player.clear();
+      drawRegionBox();
+      if (note) say(note.text, note.kind);
+      else say("Loaded “" + s.name + "”. Press Draw.");
+    };
+    pic.src = s.url;
+  }
+
+  function addPick(s) {
+    var b = document.createElement("button");
+    b.className = "pick";
+    b.title = s.name;
+    var im = document.createElement("img");
+    im.src = s.url; im.alt = s.name;
+    var cap = document.createElement("span");
+    cap.className = "cap"; cap.textContent = s.name;
+
+    var del = document.createElement("button");
+    del.className = "del";
+    del.textContent = "✕";
+    del.title = s.custom ? "Delete this picture" : "Hide this picture";
+    del.onclick = function (e) { e.stopPropagation(); removeSurface(s); };
+
+    b.appendChild(im); b.appendChild(cap); b.appendChild(del);
+    b.onclick = function () { selectSurface(s, b); };
+    b._surface = s;
+    picks.appendChild(b);
+    return b;
+  }
+
+  /* Factory pictures are hidden (they can always come back); uploads are deleted. */
+  function removeSurface(s) {
+    var msg = s.custom
+      ? "Delete “" + s.name + "” from this machine? This cannot be undone."
+      : "Hide “" + s.name + "”? “Reset to factory pictures” brings it back.";
+    if (!confirm(msg)) return;
+    var work = s.custom
+      ? STORE.deleteBackground(s.id)
+      : STORE.getPref("hiddenFactory", []).then(function (h) {
+        if (h.indexOf(s.id) < 0) h.push(s.id);
+        return STORE.setPref("hiddenFactory", h);
+      });
+    work.then(function () {
+      return buildSurfaces({
+        text: (s.custom ? "Deleted " : "Hid ") + "“" + s.name + "”." +
+          (s.custom ? "" : " Use “Reset to factory pictures” to bring it back.")
+      });
+    }).catch(function (e) { say(String(e.message || e), "err"); });
+  }
+
+  $("resetPics").onclick = function () {
+    STORE.listBackgrounds().then(function (mine) {
+      var msg = "Reset to the 10 factory pictures?\n\nThis un-hides every factory picture" +
+        (mine.length ? " and deletes your " + mine.length + " uploaded picture" + (mine.length > 1 ? "s" : "") + "." : ".");
+      if (!confirm(msg)) return null;
+      return STORE.setPref("hiddenFactory", []).then(STORE.clearBackgrounds).then(function () {
+        return buildSurfaces({ text: "Back to the 10 factory pictures.", kind: "ok" });
+      });
+    }).catch(function (e) { say(String(e.message || e), "err"); });
+  };
+
+  /* Rebuilds the whole grid: factory pictures minus hidden ones, then uploads.
+     `note` overrides the status line so a caller's message isn't clobbered by
+     the picture-loaded message that lands a moment later. */
+  function buildSurfaces(note) {
+    return Promise.all([
+      STORE.getPref("hiddenFactory", []).catch(function () { return []; }),
+      STORE.listBackgrounds().catch(function () { return []; })
+    ]).then(function (r) {
+      var hidden = r[0] || [], mine = r[1] || [];
+      var keepId = state.surface && state.surface.id;
+      picks.innerHTML = "";
+
+      var factory = BACKGROUNDS.filter(function (bg) { return hidden.indexOf(bg.id) < 0; });
+      var surfaces = factory.map(function (bg) {
+        return {
+          id: bg.id, name: bg.name, tone: bg.tone, region: bg.region,
+          url: buildBackground(bg), natW: bg.w, natH: bg.h, custom: false
+        };
+      }).concat(mine.map(function (b) {
+        return {
+          id: b.id, name: b.name, tone: b.tone, region: b.region,
+          url: b.url, natW: b.natW, natH: b.natH, custom: true
+        };
+      }));
+
+      if (!surfaces.length) {
+        /* not named `note` — a var here would hoist and shadow the parameter */
+        var blank = document.createElement("div");
+        blank.className = "pick load";
+        blank.style.gridColumn = "1 / -1";
+        blank.textContent = "No pictures — upload one or reset.";
+        picks.appendChild(blank);
+        say("Every picture is hidden — press “Reset to factory pictures”.", "err");
+        return;
+      }
+
+      var chosen = null, chosenEl = null;
+      surfaces.forEach(function (s) {
+        var el = addPick(s);
+        if (s.id === keepId) { chosen = s; chosenEl = el; }
+      });
+      if (!chosen) { chosen = surfaces[0]; chosenEl = picks.children[0]; }
+      selectSurface(chosen, chosenEl, note || {
+        text: surfaces.length + " pictures ready" +
+          (mine.length ? " (" + mine.length + " of them yours)" : "") + ". Press Draw."
+      });
+    });
+  }
+
+  /* ---------- upload ---------- */
+
+  $("uploadBtn").onclick = function () { $("file").click(); };
+  $("file").onchange = function (e) {
+    var f = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!f) return;
+    say("Reading “" + f.name + "”…");
+    var fr = new FileReader();
+    fr.onerror = function () { say("Could not read that file.", "err"); };
+    fr.onload = function () {
+      var probe = new Image();
+      probe.onerror = function () { say("That file isn't an image the browser can open.", "err"); };
+      probe.onload = function () {
+        /* Downscale before storing: a 12MP phone photo is far more than the
+           drawing needs, and it would eat the machine's storage quota. */
+        var c = STORE.fitCanvas(probe, 1600);
+        var url = c.toDataURL("image/jpeg", 0.88);
+        var shrunk = new Image();
+        shrunk.onload = function () {
+          var reg = findWhiteSpace(shrunk);
+          var rec = {
+            name: (f.name.replace(/\.[^.]+$/, "").slice(0, 22) || "Your picture"),
+            url: url, region: reg.region, tone: reg.tone,
+            natW: shrunk.naturalWidth, natH: shrunk.naturalHeight
+          };
+          STORE.addBackground(rec).then(function (saved) {
+            return buildSurfaces().then(function () {
+              var el = Array.prototype.filter.call(picks.children, function (c2) {
+                return c2._surface && c2._surface.id === saved.id;
+              })[0];
+              if (el) {
+                selectSurface(el._surface, el, {
+                  text: "Saved “" + rec.name + "” — found a " + Math.round(reg.region.w) + "×" +
+                    Math.round(reg.region.h) + "% clear area to draw in.",
+                  kind: "ok"
+                });
+              }
+            });
+          }).catch(function (err) { say(String(err.message || err), "err"); });
+        };
+        shrunk.src = url;
+      };
+      probe.src = fr.result;
+    };
+    fr.readAsDataURL(f);
+  };
+
+  /* Look for the calmest, most evenly-lit rectangle in an uploaded picture. */
+  function findWhiteSpace(img) {
+    var N = 48;
+    var c = document.createElement("canvas");
+    var ar = img.naturalHeight / img.naturalWidth;
+    var gw = N, gh = Math.max(8, Math.round(N * ar));
+    c.width = gw; c.height = gh;
+    var g = c.getContext("2d");
+    g.drawImage(img, 0, 0, gw, gh);
+    var data;
+    try { data = g.getImageData(0, 0, gw, gh).data; }
+    catch (e) { return { region: { x: 12, y: 12, w: 76, h: 76 }, tone: "light" }; }
+
+    var lum = [], i, j;
+    for (i = 0; i < gw * gh; i++) {
+      lum.push((data[i * 4] * 0.299 + data[i * 4 + 1] * 0.587 + data[i * 4 + 2] * 0.114) / 255);
+    }
+    function at(x, y) { return lum[y * gw + x]; }
+
+    /* local busy-ness: how much a cell differs from its neighbours */
+    var busy = [];
+    for (j = 0; j < gh; j++) {
+      for (i = 0; i < gw; i++) {
+        var v = at(i, j), d = 0, n = 0;
+        for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) {
+          var xx = i + dx, yy = j + dy;
+          if (xx < 0 || yy < 0 || xx >= gw || yy >= gh) continue;
+          d += Math.abs(at(xx, yy) - v); n++;
+        }
+        busy.push(d / Math.max(1, n));
+      }
+    }
+
+    var best = null;
+    var minW = Math.max(6, Math.round(gw * 0.28));
+    var minH = Math.max(6, Math.round(gh * 0.28));
+    for (var h = gh; h >= minH; h -= 2) {
+      for (var w = gw; w >= minW; w -= 2) {
+        for (j = 0; j + h <= gh; j += 2) {
+          for (i = 0; i + w <= gw; i += 2) {
+            var sum = 0, sumL = 0, cnt = 0, worst = 0;
+            for (var y = j; y < j + h; y++) for (var x = i; x < i + w; x++) {
+              var b = busy[y * gw + x];
+              sum += b; sumL += lum[y * gw + x]; cnt++;
+              if (b > worst) worst = b;
+            }
+            var avgBusy = sum / cnt, avgLum = sumL / cnt;
+            /* prefer big, calm, and either clearly light or clearly dark —
+               calmness outweighs size, or a busy photo would score its whole frame */
+            var contrast = Math.abs(avgLum - 0.5) * 2;
+            var score = (w * h) / (gw * gh) * 0.75 - avgBusy * 9 - worst * 2 + contrast * 0.3;
+            if (!best || score > best.score) {
+              best = { score: score, x: i, y: j, w: w, h: h, lum: avgLum };
+            }
+          }
+        }
+      }
+    }
+    if (!best) return { region: { x: 12, y: 12, w: 76, h: 76 }, tone: "light" };
+
+    var pad = 3;
+    var rx = (best.x / gw) * 100 + pad;
+    var ry = (best.y / gh) * 100 + pad;
+    var rw = (best.w / gw) * 100 - pad * 2;
+    var rh = (best.h / gh) * 100 - pad * 2;
+
+    /* Never draw right up to the edge, even when the whole picture is blank. */
+    var CAP = 90;
+    if (rw > CAP) { rx += (rw - CAP) / 2; rw = CAP; }
+    if (rh > CAP) { ry += (rh - CAP) / 2; rh = CAP; }
+
+    return {
+      region: { x: Math.max(0, rx), y: Math.max(0, ry), w: Math.max(10, rw), h: Math.max(10, rh) },
+      tone: best.lum < 0.45 ? "dark" : "light"
+    };
+  }
+
+  /* ---------- keywords ---------- */
+
+  var chipBox = $("chips");
+  CHIPS.forEach(function (word) {
+    var b = document.createElement("button");
+    b.className = "chip";
+    b.textContent = word;
+    b.onclick = function () {
+      var i = state.chips.indexOf(word);
+      if (i >= 0) { state.chips.splice(i, 1); b.classList.remove("on"); }
+      else { state.chips.push(word); b.classList.add("on"); }
+    };
+    chipBox.appendChild(b);
+  });
+
+  function keywords() {
+    return state.chips.concat($("kw").value.trim() ? [$("kw").value.trim()] : []).join(", ");
+  }
+
+  $("surprise").onclick = function () {
+    Array.prototype.forEach.call(chipBox.children, function (c) { c.classList.remove("on"); });
+    state.chips = [];
+    var pool = CHIPS.slice();
+    var n = 2 + Math.floor(Math.random() * 2);
+    for (var i = 0; i < n; i++) {
+      var k = Math.floor(Math.random() * pool.length);
+      var word = pool.splice(k, 1)[0];
+      state.chips.push(word);
+      Array.prototype.forEach.call(chipBox.children, function (c) {
+        if (c.textContent === word) c.classList.add("on");
+      });
+    }
+    $("kw").value = "";
+  };
+
+  /* ---------- designer selector ---------- */
+
+  var DESIGNERS = [
+    { id: "local", label: "Built-in", note: "Instant, works offline. Composes from a library of hand-coded motifs." },
+    { id: "anthropic", label: "Claude", note: "Claude Opus 5 invents the strokes at run time. Slower, far more varied." },
+    { id: "xai", label: "Grok", note: "Grok designs the strokes at run time." },
+    { id: "gemini", label: "Gemini", note: "Gemini designs the strokes at run time." }
+  ];
+
+  function buildDesigners() {
+    var have = AI.available();
+    var box = $("designer");
+    DESIGNERS.forEach(function (d) {
+      if (d.id !== "local" && have.indexOf(d.id) < 0) return;
+      var b = document.createElement("button");
+      b.textContent = d.label;
+      if (d.id === state.designer) b.classList.add("on");
+      b.onclick = function () {
+        if (d.id !== "local" && AI.needsAccessKey()) {
+          var k = prompt("This copy of Pencil asks for an access password before it will\n" +
+            "spend the owner's API credit.\n\nPassword:");
+          if (!k) { say("An access password is needed for the AI designers.", "err"); return; }
+          AI.setAccessKey(k.trim());
+        }
+        state.designer = d.id;
+        Array.prototype.forEach.call(box.children, function (c) { c.classList.remove("on"); });
+        b.classList.add("on");
+        refreshDepth();
+      };
+      box.appendChild(b);
+    });
+
+    /* the depth slider only means something when a model is doing the designing */
+    AI.TIERS.forEach(function (t, i) {
+      var s = document.createElement("span");
+      s.textContent = t.label;
+      s.onclick = function () { $("depth").value = String(i); refreshDepth(); };
+      $("depthTickLabels").appendChild(s);
+    });
+    $("depth").oninput = refreshDepth;
+    refreshDepth();
+  }
+
+  function refreshDepth() {
+    var i = parseInt($("depth").value, 10) || 0;
+    state.tier = AI.TIERS[i].id;
+    Array.prototype.forEach.call($("depthTickLabels").children, function (c, k) {
+      c.classList.toggle("on", k === i);
+    });
+    var isAI = state.designer !== "local";
+    $("depthWrap").classList.toggle("off", !isAI);
+    if (!isAI) {
+      $("designerNote").textContent = DESIGNERS[0].note;
+      return;
+    }
+    var m = AI.modelFor(state.designer, state.tier);
+    $("designerNote").textContent = AI.TIERS[i].label + " — " + m.model +
+      (m.effort ? " (effort " + m.effort + ")" : "") + " · " + AI.TIERS[i].hint;
+  }
+
+  /* ---------- drawing area overlay ---------- */
+
+  var showRegion = false;
+  $("regionBtn").onclick = function () {
+    showRegion = !showRegion;
+    $("regionBtn").classList.toggle("on", showRegion);
+    $("regionBtn").textContent = showRegion ? "Hide drawing area" : "Show drawing area";
+    drawRegionBox();
+  };
+  function drawRegionBox() {
+    var box = $("regionBox");
+    if (!showRegion || !state.surface) { box.style.display = "none"; return; }
+    var r = state.surface.region;
+    box.style.display = "block";
+    box.style.left = r.x + "%";
+    box.style.top = r.y + "%";
+    box.style.width = r.w + "%";
+    box.style.height = r.h + "%";
+  }
+
+  /* ---------- designing modal ---------- */
+
+  function openModal(label, tierIdx, model) {
+    var t = AI.TIERS[tierIdx];
+    $("modalSub").innerHTML = "<b>" + label + "</b> · " + t.label + " · " + model;
+    $("modalHint").textContent = t.hint;
+    $("clock").textContent = "0.0s";
+    $("modal").classList.add("show");
+    $("cancel").focus();
+    var t0 = performance.now();
+    var timer = setInterval(function () {
+      var s = (performance.now() - t0) / 1000;
+      $("clock").textContent = s < 60
+        ? s.toFixed(1) + "s"
+        : Math.floor(s / 60) + "m " + (s % 60).toFixed(0) + "s";
+      if (s > 25 && s < 26) $("modalHint").textContent = "Still going — bigger models think for a while.";
+      if (s > 90 && s < 91) $("modalHint").textContent = "This one is taking its time. Cancel any time.";
+    }, 100);
+    return timer;
+  }
+
+  function closeModal() {
+    if (pending && pending.timer) clearInterval(pending.timer);
+    $("modal").classList.remove("show");
+    pending = null;
+  }
+
+  function cancelDesign() {
+    if (!pending) return;
+    pending.controller.abort();
+  }
+
+  $("cancel").onclick = cancelDesign;
+  $("modal").onclick = function (e) { if (e.target === $("modal")) cancelDesign(); };
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && pending) cancelDesign();
+  });
+
+  /* ---------- draw ---------- */
+
+  $("speed").oninput = function () {
+    player.rate = parseFloat(this.value);
+    $("speedVal").textContent = player.rate.toFixed(1) + "×";
+  };
+  player.rate = parseFloat($("speed").value);
+  $("speedVal").textContent = player.rate.toFixed(1) + "×";
+
+  var lastResult = null;
+  var lastMeta = null;      // how the drawing on screen was made
+  var savedThis = false;    // so autosave doesn't store the same drawing twice
+
+  async function go() {
+    if (!state.surface) { say("Pick a picture first.", "err"); return; }
+    if (state.drawing) return;
+    var s = state.surface;
+    var kw = keywords();
+    var seed = (Math.random() * 0xffffffff) >>> 0;
+
+    setBusy(true);
+    state.drawing = true;
+    savedThis = false;
+    player.stop();
+    player.clear();
+    barEl.style.width = "0%";
+
+    try {
+      var result;
+      if (state.designer === "local") {
+        var p = COMPOSE.plan(kw, PX.makeRand(seed));
+        say("Composing “" + p.title + "”…");
+        result = COMPOSE.compose({
+          plan: p, region: s.region, natW: s.natW, natH: s.natH, tone: s.tone, seed: seed
+        });
+        state.lastPlan = p.title;
+        lastMeta = {
+          designer: "local", designerLabel: "Built-in", model: "built-in composer",
+          tier: null, surfaceName: s.name, keywords: kw, title: p.title,
+          scene: p.scene, palette: p.palette
+        };
+      } else {
+        var name = DESIGNERS.filter(function (d) { return d.id === state.designer; })[0].label;
+        var tierIdx = parseInt($("depth").value, 10) || 0;
+        var m = AI.modelFor(state.designer, state.tier);
+        var controller = new AbortController();
+        pending = { controller: controller, timer: openModal(name, tierIdx, m.model) };
+        say("Asking " + name + " (" + m.model + ") to design a drawing…");
+
+        var hint = COMPOSE.plan(kw, PX.makeRand(seed)).palette;
+        try {
+          result = await AI.design({
+            provider: state.designer, keywords: kw, region: s.region,
+            natW: s.natW, natH: s.natH, tone: s.tone, surface: s.name,
+            seed: seed, paletteHint: hint, tier: state.tier, signal: controller.signal
+          });
+        } finally {
+          closeModal();
+        }
+        state.lastPlan = result.title || "an original design";
+        lastMeta = {
+          designer: state.designer, designerLabel: name, model: result.model,
+          tier: AI.TIERS[tierIdx].label, surfaceName: s.name, keywords: kw,
+          title: result.title, ops: result.stats.drawn, dropped: result.stats.skipped
+        };
+        say(name + " sent " + result.stats.drawn + " strokes" +
+          (result.stats.skipped ? " (" + result.stats.skipped + " unusable)" : "") + " — drawing…");
+      }
+      lastResult = result;
+      player.play(result.actions);
+    } catch (err) {
+      closeModal();
+      state.drawing = false;
+      setBusy(false);
+      if (err && err.cancelled) say("Cancelled — nothing drawn.");
+      else { say(String(err.message || err), "err"); console.error(err); }
+    }
+  }
+
+  $("draw").onclick = go;
+  $("again").onclick = go;
+  $("skip").onclick = function () { if (player.actions.length) player.finishNow(); };
+  $("clear").onclick = function () {
+    player.stop(); player.clear(); lastResult = null;
+    barEl.style.width = "0%"; say("Cleared.");
+  };
+
+  /* Picture + artwork, composited at the picture's own resolution. */
+  function composite() {
+    var s = state.surface;
+    var c = document.createElement("canvas");
+    c.width = s.natW; c.height = s.natH;
+    var g = c.getContext("2d");
+    g.drawImage(pic, 0, 0, s.natW, s.natH);
+    if (lastResult) player.renderTo(g, s.natW, s.natH);
+    return c;
+  }
+
+  function slug(t) {
+    return (t || "drawing").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "drawing";
+  }
+
+  $("save").onclick = function () {
+    if (!state.surface) return;
+    var a = document.createElement("a");
+    try {
+      a.href = composite().toDataURL("image/png");
+    } catch (e) {
+      say("Can't export this picture (the browser blocked reading it).", "err");
+      return;
+    }
+    a.download = "pencil-" + slug(state.lastPlan) + ".png";
+    a.click();
+    say("Saved PNG.", "ok");
+  };
+
+  /* ---------- gallery ---------- */
+
+  function keepDrawing(quiet) {
+    if (!state.surface || !lastResult) {
+      if (!quiet) say("Draw something first.", "err");
+      return Promise.resolve(null);
+    }
+    var s = state.surface;
+    var full = composite();
+    var thumb = STORE.fitCanvas(full, 320).toDataURL("image/jpeg", 0.72);
+    /* JPEG at full size keeps a dozen drawings well inside a normal quota */
+    return STORE.canvasToBlob(STORE.fitCanvas(full, 1800), "image/jpeg", 0.92).then(function (blob) {
+      var m = lastMeta || {};
+      return STORE.addDrawing({
+        title: m.title || state.lastPlan || "Untitled",
+        designer: m.designer, designerLabel: m.designerLabel, model: m.model, tier: m.tier,
+        surfaceName: m.surfaceName || s.name, keywords: m.keywords || "",
+        scene: m.scene, palette: m.palette, ops: m.ops, dropped: m.dropped,
+        w: full.width, h: full.height, size: blob.size,
+        thumb: thumb, image: blob
+      });
+    }).then(function (rec) {
+      savedThis = true;
+      refreshGalleryCount();
+      if (!quiet) say("Saved “" + rec.title + "” to the gallery.", "ok");
+      return rec;
+    }).catch(function (e) {
+      say(String(e.message || e), "err");
+      return null;
+    });
+  }
+
+  $("keep").onclick = function () { keepDrawing(false); };
+
+  $("autosave").onchange = function () {
+    STORE.setPref("autosave", $("autosave").checked).catch(function () {});
+  };
+
+  function refreshGalleryCount() {
+    STORE.listDrawings().then(function (list) {
+      $("openGal").textContent = list.length ? "Gallery (" + list.length + ")" : "Gallery";
+    }).catch(function () {});
+  }
+
+  var gal = { items: [], sel: {}, active: null };
+
+  function openGallery() {
+    $("gal").classList.add("show");
+    STORE.listDrawings().then(function (list) {
+      gal.items = list;
+      gal.sel = {};
+      gal.active = null;
+      renderGallery();
+      return STORE.usage();
+    }).then(function (u) {
+      $("galMeta").textContent = u && u.usage
+        ? STORE.bytes(u.usage) + " used on this machine"
+        : "";
+    }).catch(function (e) {
+      $("galGrid").innerHTML = "";
+      $("galSide").innerHTML = "";
+      var d = document.createElement("div");
+      d.id = "galEmpty";
+      d.textContent = String(e.message || e);
+      $("galGrid").appendChild(d);
+    });
+  }
+
+  function selCount() { return Object.keys(gal.sel).length; }
+
+  function renderGallery() {
+    var grid = $("galGrid");
+    grid.innerHTML = "";
+    $("galTitle").textContent = "Gallery — " + gal.items.length +
+      (gal.items.length === 1 ? " drawing" : " drawings");
+
+    if (!gal.items.length) {
+      var d = document.createElement("div");
+      d.id = "galEmpty";
+      d.innerHTML = "Nothing saved yet.<br>Draw something, then press <b>★ Save to gallery</b>.";
+      grid.appendChild(d);
+      $("galSide").innerHTML = "";
+      updateGalButtons();
+      return;
+    }
+
+    gal.items.forEach(function (it) {
+      var card = document.createElement("button");
+      card.className = "card" + (gal.sel[it.id] ? " sel" : "") + (gal.active === it.id ? " active" : "");
+      var im = document.createElement("img");
+      im.src = it.thumb; im.alt = it.title;
+      var t = document.createElement("div");
+      t.className = "t";
+      t.innerHTML = "";
+      t.appendChild(document.createTextNode(it.title));
+      var sm = document.createElement("small");
+      sm.textContent = (it.designerLabel || "?") + " · " + new Date(it.createdAt).toLocaleDateString();
+      t.appendChild(sm);
+      var tick = document.createElement("span");
+      tick.className = "tick";
+      tick.textContent = "✓";
+      tick.onclick = function (e) {
+        e.stopPropagation();
+        if (gal.sel[it.id]) delete gal.sel[it.id]; else gal.sel[it.id] = true;
+        renderGallery();
+      };
+      card.appendChild(im); card.appendChild(t); card.appendChild(tick);
+      card.onclick = function () { gal.active = it.id; renderGallery(); showDetail(it); };
+      grid.appendChild(card);
+    });
+
+    if (gal.active) {
+      var act = gal.items.filter(function (x) { return x.id === gal.active; })[0];
+      if (act) showDetail(act);
+    } else {
+      $("galSide").innerHTML = '<div style="color:var(--dim);font-size:12.5px">' +
+        "Tick the corner of a card to select it for download or deletion.<br><br>" +
+        "Click a card to see which model drew it." + "</div>";
+    }
+    updateGalButtons();
+  }
+
+  function showDetail(it) {
+    var side = $("galSide");
+    side.innerHTML = "";
+    var im = document.createElement("img");
+    im.src = it.thumb; im.alt = it.title;
+    side.appendChild(im);
+
+    var h = document.createElement("div");
+    h.style.cssText = "font-weight:650;margin-bottom:8px";
+    h.textContent = it.title;
+    side.appendChild(h);
+
+    var dl = document.createElement("dl");
+    function row(k, v) {
+      if (v === undefined || v === null || v === "") return;
+      var dt = document.createElement("dt"); dt.textContent = k;
+      var dd = document.createElement("dd"); dd.textContent = v;
+      dl.appendChild(dt); dl.appendChild(dd);
+    }
+    row("Designer", it.designerLabel + (it.tier ? " · " + it.tier : ""));
+    row("Model", it.model);
+    row("Background", it.surfaceName);
+    row("Keywords", it.keywords || "(none)");
+    row("Made", new Date(it.createdAt).toLocaleString());
+    row("Size", it.w + "×" + it.h + " · " + STORE.bytes(it.size));
+    if (it.ops) row("Ops", it.ops + " used" + (it.dropped ? ", " + it.dropped + " dropped" : ""));
+    if (it.scene) row("Layout", it.scene + " · " + it.palette);
+    side.appendChild(dl);
+
+    var row2 = document.createElement("div");
+    row2.className = "row";
+    row2.style.marginTop = "14px";
+    var dbtn = document.createElement("button");
+    dbtn.textContent = "Download";
+    dbtn.onclick = function () { downloadItems([it.id]); };
+    var xbtn = document.createElement("button");
+    xbtn.textContent = "Delete";
+    xbtn.onclick = function () { deleteItems([it.id]); };
+    row2.appendChild(dbtn); row2.appendChild(xbtn);
+    side.appendChild(row2);
+  }
+
+  function updateGalButtons() {
+    var n = selCount();
+    $("galDown").textContent = n ? "Download " + n : "Download";
+    $("galDel").textContent = n ? "Delete " + n : "Delete";
+    $("galDown").disabled = !n;
+    $("galDel").disabled = !n;
+    $("galAll").textContent = (n === gal.items.length && n) ? "Select none" : "Select all";
+    $("galAll").disabled = !gal.items.length;
+  }
+
+  function downloadItems(ids) {
+    ids.forEach(function (key, i) {
+      STORE.getDrawing(key).then(function (rec) {
+        if (!rec) return;
+        var url = URL.createObjectURL(rec.image);
+        var a = document.createElement("a");
+        a.href = url;
+        a.download = "pencil-" + slug(rec.title) + ".jpg";
+        /* stagger: browsers throttle a burst of simultaneous downloads */
+        setTimeout(function () {
+          a.click();
+          setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+        }, i * 350);
+      });
+    });
+    $("galMeta").textContent = "Downloading " + ids.length + "…";
+  }
+
+  function deleteItems(ids) {
+    var what = ids.length === 1 ? "this drawing" : ids.length + " drawings";
+    if (!confirm("Delete " + what + " from this machine? This cannot be undone.")) return;
+    STORE.deleteDrawings(ids).then(function () {
+      gal.items = gal.items.filter(function (x) { return ids.indexOf(x.id) < 0; });
+      ids.forEach(function (k) { delete gal.sel[k]; });
+      if (ids.indexOf(gal.active) >= 0) gal.active = null;
+      renderGallery();
+      refreshGalleryCount();
+    }).catch(function (e) { say(String(e.message || e), "err"); });
+  }
+
+  $("openGal").onclick = openGallery;
+  $("galClose").onclick = function () { $("gal").classList.remove("show"); };
+  $("galAll").onclick = function () {
+    if (selCount() === gal.items.length) gal.sel = {};
+    else gal.items.forEach(function (it) { gal.sel[it.id] = true; });
+    renderGallery();
+  };
+  $("galDown").onclick = function () { downloadItems(Object.keys(gal.sel)); };
+  $("galDel").onclick = function () { deleteItems(Object.keys(gal.sel)); };
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && $("gal").classList.contains("show") && !pending) {
+      $("gal").classList.remove("show");
+    }
+  });
+
+  $("kw").addEventListener("keydown", function (e) { if (e.key === "Enter") go(); });
+
+  /* ---------- resize ---------- */
+
+  var rt;
+  window.addEventListener("resize", function () {
+    clearTimeout(rt);
+    rt = setTimeout(function () {
+      if (!state.surface || !pic.naturalWidth) return;
+      var wasRunning = player.running;
+      player.layout();
+      if (wasRunning) { player.clear(); }
+      else if (lastResult) { player.clear(); player.renderTo(player.inkCtx, player.W, player.H); }
+      drawRegionBox();
+    }, 140);
+  });
+
+  /* A deployed copy keeps its keys server-side, so ask what it can proxy for
+     before deciding which designer buttons to show. */
+  AI.discover().then(function (proxied) {
+    buildDesigners();
+    if (proxied.length) console.log("Proxied designers:", proxied.join(", "));
+  });
+  say("Preparing pictures…");
+  setTimeout(function () {
+    buildSurfaces().catch(function (e) {
+      say("Local storage unavailable (" + (e.message || e) + ") — factory pictures only.", "err");
+    });
+  }, 0);
+  refreshGalleryCount();
+  STORE.getPref("autosave", false).then(function (v) { $("autosave").checked = !!v; })
+    .catch(function () {});
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+# Live API keys — never commit these.
+js/keys.local.js
+
+# Fly / build scratch
+.fly/
+fly.toml.bak
+
+# Editors and OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Node (there are no dependencies, but just in case)
+node_modules/
+npm-debug.log*
+*.log
+
+# Local scratch files
+_*.html
+*.tmp

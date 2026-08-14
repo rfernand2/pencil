@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hand-Drawn Ace Transformation</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f0f0;
+            overflow: hidden; /* Prevent scrollbars */
+        }
+
+        #container {
+            position: relative;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            border-radius: 10px; /* Optional, for cleaner edges */
+            overflow: hidden; /* Crucial for the background image */
+        }
+
+        #backgroundImage {
+            width: auto;
+            height: 90vh; /* Scaled for standard screens, keep aspect ratio */
+            display: block;
+            border-radius: 10px;
+        }
+
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            cursor: crosshair; /* Visible drawing cursor */
+        }
+    </style>
+</head>
+<body>
+
+    <div id="container">
+        <!-- Baseline Image from input -->
+        <img id="backgroundImage" src="https://www.bubbbly.com/assets/ace-of-clubs.webp" alt="Ace of Clubs">
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const img = document.getElementById('backgroundImage');
+
+        // Configuration for the hand-drawn style
+        const sketchColor = '#333'; // Slightly warmer black/dark gray
+        const sketchWidth = 3;
+        const colorFill = 'rgba(100, 180, 255, 0.5)'; // Translucent blue for hand-colored look
+        const sketchSpeed = 30; // Milliseconds between steps (lower is faster)
+        const lineWobble = 2; // Maximum pixel variation for hand-drawn effect
+
+        let drawingPaths = [];
+        let isDrawing = false;
+        let animationFrame;
+
+        // Initialize canvas once image is loaded to set correct dimensions
+        img.onload = function() {
+            canvas.width = img.clientWidth;
+            canvas.height = img.clientHeight;
+            // Define the artwork steps
+            defineArtwork();
+            animateDrawing();
+        };
+
+        // If the image is already cached, trigger the load event manually
+        if (img.complete) {
+            img.onload();
+        }
+
+        // --- Define the Artwork Points ---
+        // Coordinates will be relative to canvas size (0 to canvas.width/height)
+        function defineArtwork() {
+            const w = canvas.width;
+            const h = canvas.height;
+            const centerX = w / 2;
+            const centerY = h / 2;
+
+            // Artwork concept: The existing Club symbols are transformed into a stylized hand-drawn forest or grove.
+            // 1. Outline the main Club (central, with trunk and three leaves).
+            const clubOutline = [
+                {x: centerX - 20, y: centerY + 130}, // Trunk base left
+                {x: centerX + 20, y: centerY + 130}, // Trunk base right
+                {x: centerX + 10, y: centerY + 30},  // Trunk top right
+                {x: centerX + 100, y: centerY + 70}, // Leaf 1 (bottom right) far corner
+                {x: centerX + 60, y: centerY + 0},   // Leaf 1 corner
+                {x: centerX + 0, y: centerY - 90},  // Leaf 2 (top) far corner
+                {x: centerX - 60, y: centerY + 0},  // Leaf 2 corner
+                {x: centerX - 100, y: centerY + 70}, // Leaf 3 (bottom left) far corner
+                {x: centerX - 10, y: centerY + 30}, // Leaf 3 corner
+                {x: centerX - 20, y: centerY + 130} // Back to trunk base
+            ];
+
+            // 2. Add smaller hand-drawn trees/clubs in the background, near top/bottom corners.
+            const smallTree1 = createSmallTree(centerX - 150, centerY - 150, 40);
+            const smallTree2 = createSmallTree(centerX + 150, centerY + 150, 40);
+
+            // 3. Add details: branches inside the main tree, root details.
+            const branches = [
+                {points: [{x: centerX - 5, y: centerY + 50}, {x: centerX - 50, y: centerY + 30}]},
+                {points: [{x: centerX + 5, y: centerY + 40}, {x: centerX + 40, y: centerY + 10}]},
+                {points: [{x: centerX + 0, y: centerY - 10}, {x: centerX + 0, y: centerY - 50}]},
+            ];
+
+            // Add fill color steps
+            const fillMain = {type: 'fill', color: colorFill, points: clubOutline};
+
+            // Store paths with additional info (close path)
+            drawingPaths = [
+                {points: clubOutline, close: true, delay: 500},
+                {points: smallTree1, close: true},
+                {points: smallTree2, close: true},
+                ...branches, // Spread individual branch paths
+                fillMain // A color wash
+            ];
+        }
+
+        function createSmallTree(x, y, scale) {
+            return [
+                {x: x - scale * 0.2, y: y + scale * 0.8},
+                {x: x + scale * 0.2, y: y + scale * 0.8},
+                {x: x + scale * 0.1, y: y + scale * 0.2},
+                {x: x + scale, y: y + scale * 0.5},
+                {x: x + scale * 0.6, y: y},
+                {x: x, y: y - scale * 0.8},
+                {x: x - scale * 0.6, y: y},
+                {x: x - scale, y: y + scale * 0.5},
+                {x: x - scale * 0.1, y: y + scale * 0.2},
+                {x: x - scale * 0.2, y: y + scale * 0.8}
+            ];
+        }
+
+        // --- Drawing and Animation Logic ---
+
+        function drawStroke(p1, p2, color, width) {
+            // Apply a slight random wobble to simulate hand-drawn inaccuracy
+            const wobbleX1 = (Math.random() - 0.5) * lineWobble;
+            const wobbleY1 = (Math.random() - 0.5) * lineWobble;
+            const wobbleX2 = (Math.random() - 0.5) * lineWobble;
+            const wobbleY2 = (Math.random() - 0.5) * lineWobble;
+
+            ctx.beginPath();
+            ctx.moveTo(p1.x + wobbleX1, p1.y + wobbleY1);
+            ctx.lineTo(p2.x + wobbleX2, p2.y + wobbleY2);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            ctx.lineCap = 'round'; // Softer look
+            ctx.lineJoin = 'round';
+            ctx.stroke();
+        }
+
+        function fillShape(points, color) {
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            for (let i = 1; i < points.length; i++) {
+                ctx.lineTo(points[i].x, points[i].y);
+            }
+            if (drawingPaths[0].close) ctx.closePath(); // Handle closing based on the first path
+            ctx.fillStyle = color;
+            ctx.fill();
+        }
+
+        let currentPathIndex = 0;
+        let currentPointIndex = 0;
+
+        function animateDrawing() {
+            if (currentPathIndex >= drawingPaths.length) {
+                isDrawing = false;
+                cancelAnimationFrame(animationFrame);
+                return; // Reached the end
+            }
+
+            isDrawing = true;
+            const currentPath = drawingPaths[currentPathIndex];
+            const points = currentPath.points;
+
+            // Check if it's a fill step or a normal stroke step
+            if (currentPath.type === 'fill') {
+                fillShape(currentPath.points, currentPath.color);
+                currentPathIndex++;
+                currentPointIndex = 0;
+                requestAnimationFrame(animateDrawing);
+                return;
+            }
+
+            // Draw line segment
+            if (currentPointIndex < points.length - 1) {
+                drawStroke(points[currentPointIndex], points[currentPointIndex + 1], sketchColor, sketchWidth);
+                currentPointIndex++;
+            } else if (currentPath.close && currentPointIndex === points.length - 1) {
+                // Close the path if specified
+                drawStroke(points[currentPointIndex], points[0], sketchColor, sketchWidth);
+                currentPointIndex++;
+            } else {
+                // Move to the next path
+                currentPathIndex++;
+                currentPointIndex = 0;
+                // Add a small delay between major strokes/objects if specified
+                if (currentPath.delay) {
+                    isDrawing = false;
+                    setTimeout(() => {
+                        requestAnimationFrame(animateDrawing);
+                    }, currentPath.delay);
+                    return;
+                }
+            }
+
+            // Schedule the next segment drawing
+            setTimeout(() => {
+                requestAnimationFrame(animateDrawing);
+            }, sketchSpeed);
+        }
+
+    </script>
+</body>
+</html>
