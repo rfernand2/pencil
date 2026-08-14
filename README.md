@@ -1,7 +1,11 @@
 # Pencil
 
-Pick a picture, give it some keywords, press **Draw**, and a pencil sketches something
-onto the picture's white space — stroke by stroke, in front of you.
+Pick a picture, press **Draw**, and a pencil sketches something onto it — stroke by
+stroke, in front of you. It doesn't draw *next to* what's already there; it builds on it.
+Given an ace of clubs it grows a trunk under the club pip and makes it a tree. Given a
+ruled page it turns the lines into a sea and sails a boat along one of them.
+
+Keywords are optional. They steer what it does with the picture; they aren't the subject.
 
 Open `pencil.html` in a browser, or run `run.bat` to serve it on
 `http://127.0.0.1:8080`. No build step, no dependencies.
@@ -20,7 +24,8 @@ Everything above that is new:
 | `js/backgrounds.js` | The ten pictures, drawn procedurally onto a canvas; each declares its white-space rectangle |
 | `js/motifs.js` | 52 hand-coded motifs (trees, cats, lighthouses, mandalas…) with tags for keyword matching |
 | `js/strokefont.js` | A single-stroke alphabet, so the pencil can hand-letter a word |
-| `js/compose.js` | Keywords → a scene plan (motifs, palette, layout) → actions |
+| `js/riffs.js` | 22 ways to build on a feature of the picture — the heart of it |
+| `js/compose.js` | Picture features + keywords → a plan → actions |
 | `js/ai.js` | Optional: an LLM designs the strokes instead, at run time |
 | `js/store.js` | Everything kept on this machine — gallery, uploads, preferences |
 | `server.js` / `run.bat` | Serving it locally (and, later, the deployed container) |
@@ -32,6 +37,36 @@ to whatever the region's aspect makes it. One local unit is square on screen, so
 is a circle whichever picture it lands on. `compose.sketchFor()` maps local units into
 image percentages; the player maps those to pixels at whatever size the picture is shown.
 
+## Using the picture as the idea
+
+This is the whole point, and it comes from the post the project started with — several
+models were handed an ace of clubs and asked to *"be creative and draw inside the card,
+using the card as inspo"*. Drawing something unrelated in the blank middle misses it.
+
+So every picture declares its **features**: the club pip, a coffee ring, the ruled lines,
+a fold crease, the hills on the horizon, a wax seal, the blank canvas in a frame. 28 of
+them across the ten pictures, each with a weight saying how interesting it is to build on —
+the card's pip beats the card's border even though the border is far bigger.
+
+`js/riffs.js` then holds ways to build on a feature, keyed by what kind of thing it is:
+
+| The picture has… | …so the drawing might |
+| --- | --- |
+| a round thing (coffee ring, postmark, cup) | make it a sun, a hot-air balloon, a bicycle wheel, a ringed planet, a pond with a fish |
+| a printed emblem (the club pip) | grow a trunk under it, hang a basket from it, plant clover beneath it, let vines climb out |
+| ruled lines | turn them into a sea with a boat riding one, a stave with notes on it, a fence, rain |
+| a strong edge (horizon, fold, seam) | peg washing along it, walk a cat down it, stand a town on it, sail a boat on it |
+| a rectangle (canvas, label, stamp box) | make it a window with curtains, a doorway with a path, something climbing in |
+| tape corners, spiral binding, a treeline | grow a vine from under it, send a snail up it, fly birds over it |
+
+Keywords pick *among* those: on a ruled page, "music" gives the stave, "sea" the boat,
+"rain" the umbrella, "cat" the fence. With none, the picture decides on its own, and the
+status line tells you what it did — *"turned the ruled lines into a sea"*.
+
+The AI designers get the same information: the prompt lists what is printed on the surface
+with coordinates, and asks the model to build on one of them so the result *could not have
+been drawn on any other picture*.
+
 ## The ten pictures
 
 Each was chosen (and drawn) for having a large, calm area to draw into: an ace-of-clubs
@@ -39,15 +74,17 @@ playing card, a taped sketchbook page, a ruled notebook, a vintage postcard, a l
 napkin on a dark desk, sky over hills, a snowfield, a framed blank canvas, a kraft
 envelope, and a blueprint sheet. The blueprint is dark, so the pencil switches to white.
 
+Uploaded pictures have no declared features, so they get a free-standing drawing.
+
 **Upload…** takes your own picture and finds the drawing area itself: it downsamples the
 image, scores every candidate rectangle on size, local flatness and contrast, and picks
 the calmest large one. **Show drawing area** overlays whatever it settled on.
 
 ## Who designs it
 
-- **Built-in** — instant and offline. Keywords are matched against motif tags and themes,
-  which pick a palette and one of four layouts (landscape, vignette, pattern, scatter).
-  A keyword it doesn't recognise gets hand-lettered into the drawing instead.
+- **Built-in** — instant and offline. Picks a feature of the picture and a way to build on
+  it, then scatters a few supporting details in the clear space. A keyword it does not
+  recognise gets hand-lettered into the drawing instead.
 - **Claude / Grok / Gemini** — the model is handed the drawing vocabulary and the region's
   dimensions, and returns a JSON list of ops. It can use the built-in motifs *and* invent
   its own strokes, so the results are far more varied.
@@ -155,6 +192,7 @@ secrets restarts the machine, and the client discovers what is available from
 ## Other controls
 
 **Drawing speed** scales the animation (0.3×–6×). **Finish now** renders the rest instantly.
-**Redraw** re-rolls the same keywords into a different picture — every press uses a fresh
+**Surprise me** clears the keywords, which hands the idea back to the picture.
+**Redraw** re-rolls the same settings into a different drawing — every press uses a fresh
 seed, so no two drawings are alike. **Save PNG** composites the artwork onto the picture at
 its full resolution, not at screen size.

@@ -59,6 +59,11 @@
   B.push({
     id: "card", name: "Ace of clubs", w: 900, h: 1260, tone: "light",
     region: { x: 13, y: 15, w: 74, h: 70 },
+    features: [
+      {id: "pip", kind: "motif", x: 50, y: 44, r: 11, weight: 3.2, label: "the club pip", note: "a big black club pip printed in the middle of the card"},
+      {id: "corner", kind: "motif", x: 11, y: 8, r: 4.5, weight: 0.5, label: "the corner pip", note: "the small A and club printed in the top corner"},
+      {id: "border", kind: "frame", x: 6, y: 4, w: 88, h: 92, weight: 0.7, label: "the card border", note: "the rounded double border of the card"}
+    ],
     render: function (g, w, h) {
       var lg = g.createRadialGradient(w / 2, h * 0.4, 40, w / 2, h / 2, h * 0.8);
       lg.addColorStop(0, "#26603f"); lg.addColorStop(1, "#123322");
@@ -96,6 +101,9 @@
       g.textAlign = "center"; g.textBaseline = "top";
       g.fillText("A", m + 62, m + 40);
       club(m + 62, m + 158, 40);
+      /* The big centre pip is the thing worth drawing on — a canopy, a balloon,
+         a clover patch. Without it the card is just a blank rectangle. */
+      club(w / 2, h * 0.44, 132);
       g.save();
       g.translate(w - m - 62, h - m - 40); g.rotate(Math.PI);
       g.font = "bold 76px Georgia, serif";
@@ -110,6 +118,11 @@
   B.push({
     id: "sketchbook", name: "Sketchbook page", w: 1240, h: 940, tone: "light",
     region: { x: 9, y: 10, w: 82, h: 80 },
+    features: [
+      {id: "ring", kind: "disc", x: 71, y: 30, r: 9, weight: 2.6, label: "the coffee ring", note: "a faint brown coffee-cup ring stained on the paper"},
+      {id: "tapeTL", kind: "corner", x: 8, y: 8, angle: -0.7, weight: 1.3, label: "the tape corner", note: "a strip of masking tape across the top-left corner"},
+      {id: "tapeBR", kind: "corner", x: 92, y: 92, angle: -0.7, weight: 1, label: "the tape corner", note: "a strip of masking tape across the bottom-right corner"}
+    ],
     render: function (g, w, h) {
       g.fillStyle = "#8a7f70"; g.fillRect(0, 0, w, h);
       grain(g, w, h, 4000, 0.08, true);
@@ -128,6 +141,25 @@
         if (r() < 0.5) g.fillRect(m - 2 + r() * 5, m + t * (h - m * 2), 3, 4);
         else g.fillRect(m + t * (w - m * 2), m - 2 + r() * 5, 4, 3);
       }
+      /* a coffee ring — something for a drawing to build on */
+      g.save();
+      g.translate(w * 0.71, h * 0.30);
+      g.strokeStyle = "rgba(146,98,48,0.42)";
+      for (var q = 0; q < 3; q++) {
+        g.lineWidth = 5 - q * 1.4;
+        g.beginPath();
+        for (var a = 0; a <= 46; a++) {
+          var t = (a / 46) * Math.PI * 2;
+          var rr = w * 0.088 * (1 - q * 0.045) + Math.sin(t * 5 + q) * 2.2;
+          var px = Math.cos(t) * rr, py = Math.sin(t) * rr * 0.98;
+          a ? g.lineTo(px, py) : g.moveTo(px, py);
+        }
+        g.closePath(); g.stroke();
+      }
+      g.fillStyle = "rgba(150,106,58,0.09)";
+      g.beginPath(); g.ellipse(0, 0, w * 0.082, w * 0.080, 0, 0, Math.PI * 2); g.fill();
+      g.restore();
+
       /* corner tape */
       [[m - 12, m - 12, -0.7], [w - m - 76, m - 12, 0.7],
       [m - 12, h - m - 76, 0.7], [w - m - 76, h - m - 76, -0.7]].forEach(function (t) {
@@ -154,6 +186,11 @@
   B.push({
     id: "notebook", name: "Ruled notebook", w: 1000, h: 1300, tone: "light",
     region: { x: 20, y: 9, w: 72, h: 80 },
+    features: [
+      {id: "rules", kind: "rules", x: 12, y: 10, w: 84, h: 84, gap: 3.5, weight: 3, label: "the ruled lines", note: "blue ruled lines running across the page"},
+      {id: "margin", kind: "edge", x1: 11.4, y1: 3, x2: 11.6, y2: 97, weight: 1.1, label: "the margin line", note: "the red vertical margin line"},
+      {id: "rings", kind: "spikes", x: 5, y: 4, w: 7, h: 92, weight: 1.6, label: "the spiral binding", note: "the wire spiral binding down the left edge"}
+    ],
     render: function (g, w, h) {
       paperFill(g, w, h, "#fdfaf2", "#f2ece0");
       grain(g, w, h, 14000, 0.04, false);
@@ -184,6 +221,12 @@
   B.push({
     id: "postcard", name: "Vintage postcard", w: 1400, h: 950, tone: "light",
     region: { x: 6, y: 9, w: 41, h: 82 },
+    features: [
+      {id: "divider", kind: "edge", x1: 50, y1: 8, x2: 50, y2: 92, weight: 1.2, label: "the centre rule", note: "the vertical rule splitting the card in two"},
+      {id: "stamp", kind: "frame", x: 74, y: 10, w: 11, h: 19, weight: 1.6, label: "the stamp box", note: "the dashed AFFIX STAMP box"},
+      {id: "parAvion", kind: "disc", x: 72, y: 34, r: 5.5, weight: 2, label: "the postmark", note: "a faded round PAR AVION postmark"},
+      {id: "lines", kind: "rules", x: 55, y: 52, w: 38, h: 25, gap: 6, weight: 2, label: "the address lines", note: "ruled address lines on the right half"}
+    ],
     render: function (g, w, h) {
       g.fillStyle = "#6d6355"; g.fillRect(0, 0, w, h);
       var m = 22;
@@ -233,6 +276,11 @@
   B.push({
     id: "napkin", name: "Napkin on desk", w: 1240, h: 960, tone: "light",
     region: { x: 22, y: 22, w: 56, h: 58 },
+    features: [
+      {id: "cup", kind: "disc", x: 90, y: 12, r: 8, weight: 2.6, label: "the coffee cup", note: "a coffee cup resting at the top-right corner"},
+      {id: "fold", kind: "edge", x1: 22, y1: 50, x2: 78, y2: 49, weight: 1.6, label: "the fold crease", note: "a fold crease running across the napkin"},
+      {id: "foldV", kind: "edge", x1: 50, y1: 17, x2: 50, y2: 82, weight: 1.2, label: "the fold crease", note: "a fold crease running down the napkin"}
+    ],
     render: function (g, w, h) {
       var lg = g.createLinearGradient(0, 0, w, h);
       lg.addColorStop(0, "#4a3527"); lg.addColorStop(1, "#2f2118");
@@ -287,6 +335,10 @@
   B.push({
     id: "sky", name: "Sky over hills", w: 1400, h: 920, tone: "light",
     region: { x: 7, y: 5, w: 86, h: 52 },
+    features: [
+      {id: "horizon", kind: "edge", x1: 0, y1: 74, x2: 100, y2: 72, weight: 3, label: "the ridge of hills", note: "the ridge of green hills along the bottom"},
+      {id: "clouds", kind: "disc", x: 30, y: 47, r: 9, weight: 1.6, label: "the low cloud", note: "a soft band of low cloud"}
+    ],
     render: function (g, w, h) {
       var lg = g.createLinearGradient(0, 0, 0, h);
       lg.addColorStop(0, "#cfe2f0"); lg.addColorStop(0.45, "#e6eff5"); lg.addColorStop(0.72, "#f4efe2"); lg.addColorStop(1, "#dfe6cf");
@@ -324,6 +376,10 @@
   B.push({
     id: "snow", name: "Snowfield", w: 1400, h: 960, tone: "light",
     region: { x: 6, y: 50, w: 88, h: 44 },
+    features: [
+      {id: "horizon", kind: "edge", x1: 0, y1: 46, x2: 100, y2: 46, weight: 3, label: "the snow horizon", note: "the horizon where the snowfield meets the sky"},
+      {id: "trees", kind: "spikes", x: 0, y: 40, w: 100, h: 8, weight: 2, label: "the treeline", note: "a distant treeline of small dark pines"}
+    ],
     render: function (g, w, h) {
       var lg = g.createLinearGradient(0, 0, 0, h);
       lg.addColorStop(0, "#c9d6e2"); lg.addColorStop(0.4, "#e2eaf1"); lg.addColorStop(0.46, "#f2f5f8"); lg.addColorStop(1, "#ffffff");
@@ -360,6 +416,10 @@
   B.push({
     id: "frame", name: "Framed canvas", w: 1080, h: 1300, tone: "light",
     region: { x: 21, y: 19, w: 58, h: 55 },
+    features: [
+      {id: "opening", kind: "frame", x: 20, y: 16, w: 60, h: 60, weight: 3, label: "the blank canvas", note: "the blank canvas inside a wooden frame"},
+      {id: "wire", kind: "edge", x1: 36, y1: 12, x2: 64, y2: 12, weight: 0.7, label: "the hanging wire", note: "the hanging wire and nail above the frame"}
+    ],
     render: function (g, w, h) {
       var lg = g.createRadialGradient(w * 0.5, h * 0.32, 60, w * 0.5, h * 0.5, h * 0.9);
       lg.addColorStop(0, "#d9cdbd"); lg.addColorStop(1, "#b6a894");
@@ -403,6 +463,11 @@
   B.push({
     id: "envelope", name: "Kraft envelope", w: 1320, h: 920, tone: "light",
     region: { x: 14, y: 27, w: 72, h: 47 },
+    features: [
+      {id: "flap", kind: "edge", x1: 7, y1: 10, x2: 50, y2: 43, weight: 1.5, label: "the flap seam", note: "the diagonal seam of the envelope flap"},
+      {id: "label", kind: "frame", x: 14, y: 27, w: 72, h: 47, weight: 2.6, label: "the address label", note: "a blank white address label stuck on the envelope"},
+      {id: "seal", kind: "disc", x: 88, y: 82, r: 4.5, weight: 2, label: "the wax seal", note: "a red wax seal at the bottom corner"}
+    ],
     render: function (g, w, h) {
       g.fillStyle = "#4c4a46"; g.fillRect(0, 0, w, h);
       grain(g, w, h, 6000, 0.06, true);
@@ -455,6 +520,11 @@
   B.push({
     id: "blueprint", name: "Blueprint sheet", w: 1400, h: 1000, tone: "dark",
     region: { x: 9, y: 9, w: 82, h: 66 },
+    features: [
+      {id: "grid", kind: "rules", x: 5, y: 5, w: 90, h: 88, gap: 2.4, weight: 2.6, label: "the blueprint grid", note: "the fine blueprint grid"},
+      {id: "title", kind: "frame", x: 68, y: 80, w: 29, h: 15, weight: 1.4, label: "the title block", note: "the title block in the bottom-right corner"},
+      {id: "dim", kind: "edge", x1: 4.3, y1: 7.8, x2: 95.7, y2: 7.8, weight: 1.2, label: "the dimension arrow", note: "a dimension arrow running across the top"}
+    ],
     render: function (g, w, h) {
       var lg = g.createRadialGradient(w * 0.4, h * 0.35, 80, w * 0.5, h * 0.5, w * 0.8);
       lg.addColorStop(0, "#1d4d86"); lg.addColorStop(1, "#12305a");

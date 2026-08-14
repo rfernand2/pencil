@@ -128,7 +128,10 @@
     var caption = null;
     var surprise = null;
 
-    if (!motifs.length) {
+    /* No keywords is a normal way to use this: the picture supplies the idea.
+       Only invent a scene when there is nothing at all to work from. */
+    var empty = !tokens.length;
+    if (!motifs.length && !empty) {
       surprise = SURPRISE[(rnd() * SURPRISE.length) | 0];
       motifs = surprise[1].slice();
       palette = palette || surprise[2];
@@ -151,10 +154,21 @@
 
     return {
       motifs: motifs.slice(0, 7),
+      tokens: tokens,
+      empty: empty,
       palette: palette,
       scene: scene,
       caption: caption,
-      title: surprise ? surprise[0] : (tokens.length ? tokens.join(" ") : "an idle doodle")
+      title: surprise ? surprise[0] : (tokens.length ? tokens.join(" ") : null)
+    };
+  }
+
+  /* Used only when there is neither a keyword nor a feature to build on. */
+  function surprisePlan(rnd) {
+    var s = SURPRISE[(rnd() * SURPRISE.length) | 0];
+    return {
+      motifs: s[1].slice(), tokens: [], empty: false,
+      palette: s[2], scene: s[3], caption: null, title: s[0]
     };
   }
 
@@ -170,6 +184,34 @@
         return { x: region.x + lx * u, y: region.y + ly * u / ar };
       }
     });
+    /* The inverse: features are described in image %, but riffs draw in local
+       units — and a feature may well sit outside the drawing region. */
+    S.unmap = function (x, y) {
+      return { x: (x - region.x) / u, y: (y - region.y) * ar / u };
+    };
+    S.toLocal = function (f) {
+      /* pctX/pctY are the feature's place on the whole picture, so a riff can
+         tell it is near an edge and build inward instead of off the page. */
+      var out = {
+        id: f.id, kind: f.kind, note: f.note, label: f.label || f.note || f.id,
+        pctX: f.x !== undefined ? f.x : (f.x1 + f.x2) / 2,
+        pctY: f.y !== undefined ? f.y : (f.y1 + f.y2) / 2
+      };
+      if (f.x !== undefined) {
+        var p = S.unmap(f.x, f.y);
+        out.x = p.x; out.y = p.y;
+      }
+      if (f.r !== undefined) out.r = f.r / u;
+      if (f.w !== undefined) out.w = f.w / u;
+      if (f.h !== undefined) out.h = (f.h * ar) / u;
+      if (f.gap !== undefined) out.gap = (f.gap * ar) / u;
+      if (f.x1 !== undefined) {
+        var a = S.unmap(f.x1, f.y1), b = S.unmap(f.x2, f.y2);
+        out.x1 = a.x; out.y1 = a.y; out.x2 = b.x; out.y2 = b.y;
+      }
+      if (f.angle !== undefined) out.angle = f.angle;
+      return out;
+    };
     return { S: S, LH: localH };
   }
 
@@ -458,22 +500,87 @@
     sparkles(S, 0, LH, pal, 10);
   }
 
+  /* A riff is the subject; this is just a few things scattered around it so the
+     rest of the clear space isn't bare. Deliberately sparse. */
+  function buildAccents(S, LH, p, pal, chosen) {
+    var rnd = S.rnd;
+    var avoid = chosen ? S.toLocal(chosen.feature) : null;
+    var reach = avoid ? (avoid.r || Math.max(avoid.w || 0, avoid.h || 0) || 12) * 1.7 : 0;
+    var n = Math.min(5, Math.max(2, p.motifs.length));
+    var placed = 0, tries = 0;
+    while (placed < n && tries++ < 60) {
+      var id = p.motifs[placed % p.motifs.length];
+      var m = global.MOTIFS[id];
+      if (!m) { placed++; continue; }
+      var sz = sizeFor(id, LH, 0.13 + rnd() * 0.06);
+      var x = 10 + rnd() * 80;
+      var y = sz * 0.6 + 3 + rnd() * Math.max(4, LH - sz - 8);
+      if (avoid && avoid.x !== undefined) {
+        var dx = x - avoid.x, dy = y - avoid.y;
+        if (Math.sqrt(dx * dx + dy * dy) < reach) continue;
+      }
+      place(S, id, x, m.anchor === "base" ? y + sz * 0.4 : y, sz, pal);
+      placed++;
+    }
+    sparkles(S, 0, LH, pal, 4);
+  }
+
   /* ---------- entry point ---------- */
+
+  /* Pick a feature of the picture and a way to build on it. Keywords steer the
+     choice; without them the picture alone decides. */
+  function pickRiff(features, tokens, rnd) {
+    if (!features || !features.length || !global.RIFFS) return null;
+    var options = [];
+    features.forEach(function (f) {
+      global.RIFFS.forKind(f.kind).forEach(function (r) {
+        /* weight says how interesting the thing is to build on — the club pip
+           beats the card's border even though the border is far bigger */
+        var score = (f.weight === undefined ? 1 : f.weight) * 2;
+        r.tags.forEach(function (t) { if (tokens.indexOf(t) >= 0) score += 8; });
+        options.push({ feature: f, riff: r, score: score + rnd() * 1.6 });
+      });
+    });
+    if (!options.length) return null;
+    options.sort(function (a, b) { return b.score - a.score; });
+    return options[0];
+  }
 
   function compose(opts) {
     var rnd = global.PX.makeRand(opts.seed);
     var built = sketchFor(opts.region, opts.natW, opts.natH, rnd);
     var S = built.S, LH = built.LH;
     var p = opts.plan;
-    var pal = PALETTES[opts.tone === "dark" ? "chalk" : (p.palette || "graphite")];
+    var chosen0 = pickRiff(opts.features, p.tokens || [], global.PX.makeRand(opts.seed ^ 0x5bf03635));
+    /* nothing asked for and nothing to build on — then invent something */
+    if (!chosen0 && p.empty) p = surprisePlan(rnd);
+
+    var moods = ["graphite", "forest", "ocean", "autumn", "sunset", "night", "candy"];
+    var palName = p.palette || moods[(rnd() * moods.length) | 0];
+    var pal = PALETTES[opts.tone === "dark" ? "chalk" : palName];
     if (opts.tone === "dark") pal = PALETTES.chalk;
     pal = Object.assign({}, pal);
 
     S.pen({ color: pal.ink, width: 0.32, alpha: 1, speed: 58 });
     S.jit = 0.15;
 
-    var builders = { landscape: buildLandscape, vignette: buildVignette, pattern: buildPattern, scatter: buildScatter };
-    (builders[p.scene] || buildVignette)(S, LH, p, pal);
+    /* The picture comes first: find something already on it worth building on. */
+    var chosen = chosen0;
+    var story = null;
+
+    if (chosen) {
+      S.pause(0.5);
+      chosen.riff.draw(S, S.toLocal(chosen.feature), pal);
+      story = chosen.riff.story.replace("%s", chosen.feature.label || chosen.feature.note || "it");
+      /* then a light supporting scene in the clear space, not a second drawing */
+      if (p.motifs.length) buildAccents(S, LH, p, pal, chosen);
+    } else {
+      var builders = {
+        landscape: buildLandscape, vignette: buildVignette,
+        pattern: buildPattern, scatter: buildScatter
+      };
+      (builders[p.scene] || buildVignette)(S, LH, p, pal);
+    }
 
     if (p.caption) {
       var capH = Math.max(2.6, Math.min(6, LH * 0.09));
@@ -487,13 +594,21 @@
     }
 
     S.pause(0.3);
-    return { actions: S.acts, palette: pal, localH: LH };
+    return {
+      actions: S.acts, palette: pal, localH: LH,
+      story: story,
+      title: story || p.title || "a doodle",
+      riff: chosen ? chosen.riff.id : null,
+      feature: chosen ? chosen.feature.id : null
+    };
   }
 
   global.COMPOSE = {
     PALETTES: PALETTES,
     THEMES: THEMES,
     plan: plan,
+    surprisePlan: surprisePlan,
+    pickRiff: pickRiff,
     compose: compose,
     sketchFor: sketchFor,
     tokenize: tokenize

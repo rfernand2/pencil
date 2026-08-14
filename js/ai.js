@@ -51,10 +51,27 @@
       "Motifs whose id is a thing that stands on the ground are anchored at their BASE (c is the bottom-centre);",
       "all others are anchored at their centre. size is roughly the motif's height.",
       "",
+      "## What is already on the picture — draw WITH it, not beside it",
+      ctx.features && ctx.features.length
+        ? [
+          "These things are already printed on the surface, at these local coordinates:",
+          ctx.features.map(function (f) { return "  - " + f.desc; }).join("\n"),
+          "",
+          "This is the whole point of the drawing. Choose one of them and build on it so the",
+          "result could not have been drawn on any other picture. Extend it, re-read it as",
+          "something else, let your drawing grow out of it or lean on it. For instance a round",
+          "stain becomes a sun, a balloon or a wheel; a printed emblem sprouts a trunk and",
+          "becomes a tree; ruled lines become a sea with a boat riding one of them, or a stave",
+          "with notes sitting on it; a strong edge becomes a horizon, a washing line, a tightrope.",
+          "Do not simply place a picture in the empty space and ignore what is there."
+        ].join("\n")
+        : "Nothing is printed on this surface, so the drawing is free-standing.",
+      "",
       "## Brief",
       ctx.keywords
-        ? 'Keywords from the person: "' + ctx.keywords + '". Let them inspire the picture — literal where a keyword names an object, atmospheric where it names a mood. You do not have to use every one.'
-        : "No keywords were given. Invent something charming and unexpected.",
+        ? 'Keywords from the person: "' + ctx.keywords + '". Use them to colour the idea, but the ' +
+          "picture's own features still lead — the keywords say what mood or characters to bring to them."
+        : "No keywords were given, which is the normal case. Take your cue entirely from the picture.",
       "Variation token (make this drawing different from other runs): " + ctx.nonce,
       "",
       "## How to draw well",
@@ -399,12 +416,33 @@
     var basePal = global.COMPOSE.PALETTES[opts.tone === "dark" ? "chalk" : (opts.paletteHint || "graphite")];
     var pal = Object.assign({}, basePal);
 
+    /* Describe the picture's own features in the same local units the model draws in. */
+    var features = (opts.features || []).map(function (f) {
+      var g = S.toLocal(f);
+      var where;
+      if (g.x1 !== undefined) {
+        where = "a line from (" + g.x1.toFixed(0) + "," + g.y1.toFixed(0) + ") to (" +
+          g.x2.toFixed(0) + "," + g.y2.toFixed(0) + ")";
+      } else if (g.r !== undefined) {
+        where = "a circle of radius " + g.r.toFixed(0) + " centred at (" +
+          g.x.toFixed(0) + "," + g.y.toFixed(0) + ")";
+      } else if (g.w !== undefined) {
+        where = "a rectangle " + g.w.toFixed(0) + " wide and " + g.h.toFixed(0) +
+          " tall with its top-left at (" + g.x.toFixed(0) + "," + g.y.toFixed(0) + ")" +
+          (g.gap ? ", ruled every " + g.gap.toFixed(1) + " units" : "");
+      } else {
+        where = "at (" + g.x.toFixed(0) + "," + g.y.toFixed(0) + ")";
+      }
+      return { desc: f.note + " — " + where, id: f.id };
+    });
+
     var prompt = buildPrompt({
       localH: LH,
       tone: opts.tone,
       surface: opts.surface,
       pal: pal,
       keywords: opts.keywords,
+      features: features,
       nonce: opts.seed.toString(36)
     });
 
