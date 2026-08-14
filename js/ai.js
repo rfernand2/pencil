@@ -10,13 +10,50 @@
   var MAX_OPS = 1400;
   var MAX_PTS = 400;
 
+  /* The drawing vocabulary, shared by the one-shot prompt and the round-by-round
+     one so the two can never drift apart. */
+  var OPS_HELP = [
+    "Each op is one of:",
+    '{"op":"pen","color":"#hex","width":0.3,"speed":60,"alpha":1}   set style for following ops',
+    '{"op":"curve","pts":[[x,y],...]}     smooth open line through the points',
+    '{"op":"shape","pts":[[x,y],...]}     smooth CLOSED outline',
+    '{"op":"poly","pts":[[x,y],...],"close":true}  straight-edged path',
+    '{"op":"line","a":[x,y],"b":[x,y]}',
+    '{"op":"circle","c":[x,y],"r":6}',
+    '{"op":"ellipse","c":[x,y],"rx":8,"ry":4,"rot":0.3}',
+    '{"op":"arc","c":[x,y],"rx":8,"ry":8,"rot":0,"from":3.14,"to":6.28}',
+    '{"op":"dot","c":[x,y],"r":0.4}',
+    '{"op":"shade","c":[x,y],"rx":5,"ry":4,"ang":0.7,"n":18}   loose pencil hatching inside an ellipse',
+    '{"op":"scribble","c":[x,y],"rx":5,"ry":4,"ang":0,"rows":7}  denser back-and-forth fill',
+    '{"op":"text","s":"WORD","c":[x,baselineY],"h":5}   hand-lettering, caps only',
+    '{"op":"motif","id":"<id>","c":[x,y],"size":20}     a ready-made drawing (see list)',
+    '{"op":"pause","d":0.3}'
+  ].join("\n");
+
   /* ---------- prompt ---------- */
+
+  /* Where the drawing box sits in the attached image, so the model can tie what
+     it can SEE to the coordinates it has to draw in. */
+  function regionNote(r, localH) {
+    if (!r) return "";
+    return [
+      "## The picture in front of you",
+      "The attached image is the picture itself — look at it, don't imagine it.",
+      "Your drawing area is the part of that image from " + r.x.toFixed(0) + "% to " +
+      (r.x + r.w).toFixed(0) + "% across and " + r.y.toFixed(0) + "% to " +
+      (r.y + r.h).toFixed(0) + "% down.",
+      "Local (0,0) is that area's top-left corner and (100," + localH.toFixed(0) +
+      ") its bottom-right, so everything you draw lands inside it.",
+      ""
+    ].join("\n");
+  }
 
   function buildPrompt(ctx) {
     var motifList = global.MOTIF_IDS.join(", ");
     return [
       "You are designing a pencil drawing that will be animated stroke-by-stroke onto a photograph.",
       "",
+      ctx.hasImage ? regionNote(ctx.region, ctx.localH) : "",
       "## Canvas",
       "You draw inside a rectangle of white space on the picture. Coordinates are in local units:",
       "x runs 0 (left) to 100 (right); y runs 0 (top) to " + ctx.localH.toFixed(1) + " (bottom). Units are square.",
@@ -31,21 +68,7 @@
       "## Ops",
       "Reply with ONLY a JSON object, no prose, no markdown fence:",
       '{"title":"<short name for the drawing>","ops":[ ... ]}',
-      "Each op is one of:",
-      '{"op":"pen","color":"#hex","width":0.3,"speed":60,"alpha":1}   set style for following ops',
-      '{"op":"curve","pts":[[x,y],...]}     smooth open line through the points',
-      '{"op":"shape","pts":[[x,y],...]}     smooth CLOSED outline',
-      '{"op":"poly","pts":[[x,y],...],"close":true}  straight-edged path',
-      '{"op":"line","a":[x,y],"b":[x,y]}',
-      '{"op":"circle","c":[x,y],"r":6}',
-      '{"op":"ellipse","c":[x,y],"rx":8,"ry":4,"rot":0.3}',
-      '{"op":"arc","c":[x,y],"rx":8,"ry":8,"rot":0,"from":3.14,"to":6.28}',
-      '{"op":"dot","c":[x,y],"r":0.4}',
-      '{"op":"shade","c":[x,y],"rx":5,"ry":4,"ang":0.7,"n":18}   loose pencil hatching inside an ellipse',
-      '{"op":"scribble","c":[x,y],"rx":5,"ry":4,"ang":0,"rows":7}  denser back-and-forth fill',
-      '{"op":"text","s":"WORD","c":[x,baselineY],"h":5}   hand-lettering, caps only',
-      '{"op":"motif","id":"<id>","c":[x,y],"size":20}     a ready-made drawing (see list)',
-      '{"op":"pause","d":0.3}',
+      OPS_HELP,
       "",
       "Ready-made motifs (use for anything on this list, then draw your own strokes around them): " + motifList + ".",
       "Motifs whose id is a thing that stands on the ground are anchored at their BASE (c is the bottom-centre);",
@@ -54,7 +77,8 @@
       "## What is already on the picture — draw WITH it, not beside it",
       ctx.features && ctx.features.length
         ? [
-          "These things are already printed on the surface, at these local coordinates:",
+          "These things are already printed on the surface, at these local coordinates" +
+          (ctx.hasImage ? " (you can see them in the image too)" : "") + ":",
           ctx.features.map(function (f) { return "  - " + f.desc; }).join("\n"),
           "",
           "This is the whole point of the drawing. Choose one of them and build on it so the",
@@ -85,12 +109,133 @@
     ].join("\n");
   }
 
+  /* The emptiest patch of the drawing area, given what previous rounds took up.
+     A coarse grid is plenty, and doing this in code rather than asking the model
+     to eyeball it is what stops a small model stacking its whole scene in one
+     corner. Ties break toward the drawn work, so the picture stays a picture
+     rather than scattering into the corners. */
+  function clearSpot(history, localH) {
+    var G = 3, cw = 100 / G, ch = localH / G;
+    var boxes = (history || []).map(function (h) { return h.box; }).filter(Boolean);
+    if (!boxes.length) return null;
+
+    var cx = 0, cy = 0;
+    boxes.forEach(function (b) { cx += (b.x0 + b.x1) / 2; cy += (b.y0 + b.y1) / 2; });
+    cx /= boxes.length; cy /= boxes.length;
+
+    var best = null;
+    for (var gy = 0; gy < G; gy++) {
+      for (var gx = 0; gx < G; gx++) {
+        var x0 = gx * cw, y0 = gy * ch, x1 = x0 + cw, y1 = y0 + ch;
+        var taken = 0;
+        boxes.forEach(function (b) {
+          var ox = Math.max(0, Math.min(x1, b.x1) - Math.max(x0, b.x0));
+          var oy = Math.max(0, Math.min(y1, b.y1) - Math.max(y0, b.y0));
+          taken += ox * oy;
+        });
+        var mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+        var pull = Math.sqrt((mx - cx) * (mx - cx) + (my - cy) * (my - cy)) / 400;
+        var score = taken / (cw * ch) + pull;
+        if (!best || score < best.score) best = { score: score, x0: x0, y0: y0, x1: x1, y1: y1 };
+      }
+    }
+    return best;
+  }
+
+  /* One round of incremental mode. The model is shown the picture as it stands
+     — background plus everything drawn so far — and adds a single element. It
+     decides when the picture is finished; the caller caps how long it may go. */
+  function buildStepPrompt(ctx) {
+    var motifList = global.MOTIF_IDS.join(", ");
+    return [
+      "You are drawing on a picture, one element at a time, and you can see your own work.",
+      "",
+      regionNote(ctx.region, ctx.localH),
+      "## Where you are",
+      "This is round " + ctx.round + " of at most " + ctx.maxRounds + ".",
+      ctx.history && ctx.history.length
+        ? "You have already drawn these, and they are in the image — do not repeat any of them,\n" +
+        "and do not draw on top of them. The box after each one is the space it took up:\n" +
+        ctx.history.map(function (h, i) {
+          var b = h.box;
+          return "  " + (i + 1) + ". " + h.note + (b
+            ? "  — occupies x " + b.x0.toFixed(0) + "-" + b.x1.toFixed(0) +
+            ", y " + b.y0.toFixed(0) + "-" + b.y1.toFixed(0)
+            : "");
+        }).join("\n") +
+        (ctx.spot
+          ? "\nThe clearest space left is x " + ctx.spot.x0.toFixed(0) + "-" + ctx.spot.x1.toFixed(0) +
+          ", y " + ctx.spot.y0.toFixed(0) + "-" + ctx.spot.y1.toFixed(0) + ". Put this round's" +
+          " element there, or spanning out from there, unless it genuinely has to touch" +
+          " something already drawn (a rider on a horse, a bird on a branch)."
+          : "\nPut this round's element in space that is still clear.")
+        : "Nothing has been drawn yet. The picture starts with you.",
+      "",
+      "## The medium — read this before deciding what to draw",
+      "Every op becomes a visible pencil line, drawn one after another by a hand. There is no",
+      "airbrush, no gradient, no opacity wash, no blur. So 'subtle shading', 'a vignette',",
+      "'depth', 'atmosphere' and 'a soft shadow' do not exist here — asked for, they come out",
+      "as a scribble of hard grey lines across your drawing and wreck it.",
+      "Draw THINGS, not effects.",
+      "",
+      "## Your job this round",
+      ctx.round === 1
+        ? "This is round 1: draw the MAIN SUBJECT, in outline, and nothing else. Not a background,\n" +
+        "not a texture, not a shadow — the thing the picture is about. Make it big enough to carry\n" +
+        "the drawing and put it where it works with what is already printed on the surface."
+        : "Add exactly ONE more element, of a kind you have NOT drawn yet. Pick from:\n" +
+        "  - a second subject or companion that relates to the first (a person, animal, bird, boat…)\n" +
+        "  - the setting it sits in: ground, horizon, water, a building, branches\n" +
+        "  - a foreground or framing detail: plants, birds in the distance, small objects\n" +
+        "  - hand-lettering of a short word, if the picture wants one\n" +
+        "  - ONE pass of hatching to weight the subject — allowed only from round 4 on, once at most",
+      "Draw it where the picture needs it: fill a gap, balance a mass, or lean on something",
+      "already there. Never draw an object that is already in the picture a second time.",
+      "Send only the strokes for the new element — 30-140 ops.",
+      "",
+      "## When to stop",
+      'Set "done": true when the picture reads as complete and another element would clutter it.',
+      "A good drawing here is 3-6 elements. Be honest — stopping early is better than padding,",
+      "and padding with texture is the worst outcome. If you set done, still send this round's ops.",
+      "",
+      "## How to draw well",
+      "- Big shapes first, then detail. Curves read better than long straight lines.",
+      "- Line weight: 0.3-0.45 for outlines, 0.16-0.24 for detail, 0.5-0.8 for hatching.",
+      "- 6-20 points per curve. Keep each element inside a sensible patch, not sprawled edge to edge.",
+      "",
+      "## Canvas",
+      "Coordinates are in local units: x runs 0 (left) to 100 (right); y runs 0 (top) to " +
+      ctx.localH.toFixed(1) + " (bottom). Units are square.",
+      "The surface is: " + ctx.surface + ". Stay inside the box, leave a margin of ~4 units.",
+      "The paper is " + (ctx.tone === "dark" ? "DARK, so draw in light colours" : "LIGHT, so draw in dark colours") + ".",
+      "Palette: ink " + ctx.pal.ink + ", secondary " + ctx.pal.ink2 + ", soft " + ctx.pal.soft +
+      ", foliage " + ctx.pal.leaf + ", accents " + ctx.pal.accent.join(" ") + ".",
+      ctx.keywords ? 'Keywords from the person: "' + ctx.keywords + '".' : "",
+      "",
+      "## Ops",
+      "Reply with ONLY a JSON object, no prose, no markdown fence:",
+      '{"note":"<the element you just added, 2-6 words>","done":false,"ops":[ ... ]}',
+      OPS_HELP,
+      "Ready-made motifs: " + motifList + ".",
+      "Motifs whose id is a thing that stands on the ground are anchored at their BASE;",
+      "all others are anchored at their centre. size is roughly the motif's height.",
+      "",
+      "Variation token: " + ctx.nonce,
+      "Return the JSON object now."
+    ].join("\n");
+  }
+
   /* ---------- providers & tiers ---------- */
 
   /* Quick / Balanced / Deep map to genuinely different-sized models, not just
    * different settings. Shared with the server proxy — see js/models.js. */
   var TIERS = global.PENCIL_MODELS.TIERS;
   var MODELS = global.PENCIL_MODELS.MODELS;
+  var INCREMENTAL = global.PENCIL_MODELS.INCREMENTAL || {};
+
+  /* The tier incremental mode uses for a family — smallest that can actually
+     hold a composition together. See js/models.js. */
+  function incrementalTier(provider) { return INCREMENTAL[provider] || "quick"; }
 
   /* Providers the server will proxy for, discovered at startup. Lets a deployed
    * copy use keys held as server secrets instead of shipping them to the browser. */
@@ -162,15 +307,16 @@
     try { sessionStorage.setItem("pencilKey", v || ""); } catch (e) {}
   }
 
-  /* Same contract as the direct callers: prompt in, raw model text out. */
-  async function callProxy(prompt, provider, tier, signal) {
+  /* Same contract as the direct callers: prompt (and optionally the picture)
+     in, raw model text out. */
+  async function callProxy(prompt, provider, tier, signal, image) {
     var headers = { "content-type": "application/json" };
     if (proxyAuth) headers["x-pencil-key"] = accessKey();
     var res = await fetch("api/design", {
       method: "POST",
       signal: signal,
       headers: headers,
-      body: JSON.stringify({ provider: provider, tier: tier, prompt: prompt })
+      body: JSON.stringify({ provider: provider, tier: tier, prompt: prompt, image: image || undefined })
     });
     var data = await res.json().catch(function () { return {}; });
     if (!res.ok) {
@@ -183,11 +329,37 @@
     return data.text || "";
   }
 
-  async function callAnthropic(prompt, cfg, m, signal) {
+  /* Each provider wants the picture in its own shape. JPEG throughout: a
+     photograph re-encodes far smaller than PNG and the model is reading
+     composition, not pixels. */
+  function anthropicContent(prompt, image) {
+    if (!image) return prompt;
+    return [
+      { type: "image", source: { type: "base64", media_type: "image/jpeg", data: image } },
+      { type: "text", text: prompt }
+    ];
+  }
+
+  function openaiContent(prompt, image) {
+    if (!image) return prompt;
+    return [
+      { type: "image_url", image_url: { url: "data:image/jpeg;base64," + image } },
+      { type: "text", text: prompt }
+    ];
+  }
+
+  function geminiParts(prompt, image) {
+    var parts = [];
+    if (image) parts.push({ inline_data: { mime_type: "image/jpeg", data: image } });
+    parts.push({ text: prompt });
+    return parts;
+  }
+
+  async function callAnthropic(prompt, cfg, m, signal, image) {
     var body = {
       model: m.model,
       max_tokens: m.maxTokens,
-      messages: [{ role: "user", content: prompt }]
+      messages: [{ role: "user", content: anthropicContent(prompt, image) }]
     };
     /* Only send effort where the model supports it — Haiku 4.5 returns a 400. */
     if (m.effort) body.output_config = { effort: m.effort };
@@ -211,7 +383,7 @@
     return text;
   }
 
-  async function callXAI(prompt, cfg, m, signal) {
+  async function callXAI(prompt, cfg, m, signal, image) {
     var res = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
       signal: signal,
@@ -219,7 +391,7 @@
       body: JSON.stringify({
         model: m.model,
         max_tokens: m.maxTokens,
-        messages: [{ role: "user", content: prompt }]
+        messages: [{ role: "user", content: openaiContent(prompt, image) }]
       })
     });
     if (!res.ok) throw new Error("Grok " + res.status + ": " + (await res.text()).slice(0, 300));
@@ -227,7 +399,7 @@
     return (data.choices && data.choices[0] && data.choices[0].message.content) || "";
   }
 
-  async function callGemini(prompt, cfg, m, signal) {
+  async function callGemini(prompt, cfg, m, signal, image) {
     var url = "https://generativelanguage.googleapis.com/v1beta/models/" + m.model +
       ":generateContent?key=" + encodeURIComponent(cfg.key);
     var res = await fetch(url, {
@@ -235,7 +407,7 @@
       signal: signal,
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
+        contents: [{ parts: geminiParts(prompt, image) }],
         generationConfig: { maxOutputTokens: m.maxTokens, responseMimeType: "application/json" }
       })
     });
@@ -400,7 +572,9 @@
 
   /* ---------- public ---------- */
 
-  async function design(opts) {
+  /* Everything both modes need before they can talk to a model: a fresh sketch
+     to draw into, the palette, and the picture's features in local units. */
+  function prepare(opts) {
     var cfg = keysFor(opts.provider);
     var proxy = viaProxy(opts.provider);
     if (!proxy && (!cfg || !cfg.key)) {
@@ -436,23 +610,41 @@
       return { desc: f.note + " — " + where, id: f.id };
     });
 
-    var prompt = buildPrompt({
-      localH: LH,
-      tone: opts.tone,
-      surface: opts.surface,
-      pal: pal,
-      keywords: opts.keywords,
-      features: features,
-      nonce: opts.seed.toString(36)
-    });
+    return { cfg: cfg, proxy: proxy, caller: caller, S: S, LH: LH, pal: pal, features: features };
+  }
 
-    var tier = opts.tier || "balanced";
+  /* Where a round's strokes actually landed, back in the local units the model
+     thinks in. Telling it "that patch is taken" works far better than hoping it
+     notices from the picture — a small model will happily stack a second
+     balloon on top of the first. */
+  function boundsOf(acts, S) {
+    var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9, n = 0;
+    function add(px, py) {
+      var p = S.unmap(px, py);
+      if (p.x < x0) x0 = p.x;
+      if (p.x > x1) x1 = p.x;
+      if (p.y < y0) y0 = p.y;
+      if (p.y > y1) y1 = p.y;
+      n++;
+    }
+    for (var i = 0; i < acts.length; i++) {
+      var a = acts[i];
+      if (a.type === "stroke") {
+        for (var k = 0; k < a.points.length; k++) add(a.points[k].x, a.points[k].y);
+      } else if (a.type === "dot") add(a.x, a.y);
+    }
+    return n ? { x0: x0, y0: y0, x1: x1, y1: y1 } : null;
+  }
+
+  /* Send a prompt (with the picture attached when we have one) and hand back
+     the parsed JSON. Cancellation is normalised for both paths. */
+  async function ask(p, opts, prompt, tier) {
     var m = modelFor(opts.provider, tier);
     var raw;
     try {
-      raw = proxy
-        ? await callProxy(prompt, opts.provider, tier, opts.signal)
-        : await caller(prompt, cfg, m, opts.signal);
+      raw = p.proxy
+        ? await callProxy(prompt, opts.provider, tier, opts.signal, opts.image)
+        : await p.caller(prompt, p.cfg, m, opts.signal, opts.image);
     } catch (err) {
       if (aborted(err)) {
         var c = new Error("Cancelled.");
@@ -461,25 +653,85 @@
       }
       throw err;
     }
-    var spec = extractJSON(raw);
+    return { spec: extractJSON(raw), model: m.model };
+  }
+
+  async function design(opts) {
+    var p = prepare(opts);
+    var S = p.S, LH = p.LH, pal = p.pal;
+
+    var prompt = buildPrompt({
+      localH: LH,
+      tone: opts.tone,
+      surface: opts.surface,
+      pal: pal,
+      keywords: opts.keywords,
+      features: p.features,
+      region: opts.region,
+      hasImage: !!opts.image,
+      nonce: opts.seed.toString(36)
+    });
+
+    var got = await ask(p, opts, prompt, opts.tier || "balanced");
 
     S.pen({ color: pal.ink, width: 0.32, speed: 58, alpha: 1 });
     S.jit = 0.14;
-    var stats = interpret(spec, S, LH, pal);
+    var stats = interpret(got.spec, S, LH, pal);
     if (!stats.drawn) throw new Error("The model returned no usable strokes.");
 
     return {
       actions: S.acts,
       palette: pal,
       localH: LH,
-      title: typeof spec.title === "string" ? spec.title.slice(0, 80) : null,
-      model: m.model,
+      title: typeof got.spec.title === "string" ? got.spec.title.slice(0, 80) : null,
+      model: got.model,
+      stats: stats
+    };
+  }
+
+  /* One round of incremental mode. The caller animates the returned actions,
+     re-snapshots the picture, and comes back for the next round until `done`. */
+  async function designStep(opts) {
+    var p = prepare(opts);
+    var S = p.S, LH = p.LH, pal = p.pal;
+
+    var prompt = buildStepPrompt({
+      localH: LH,
+      tone: opts.tone,
+      surface: opts.surface,
+      pal: pal,
+      keywords: opts.keywords,
+      region: opts.region,
+      round: opts.round,
+      maxRounds: opts.maxRounds,
+      history: opts.history || [],
+      spot: clearSpot(opts.history, LH),
+      nonce: opts.seed.toString(36)
+    });
+
+    var got = await ask(p, opts, prompt, opts.tier || incrementalTier(opts.provider));
+
+    S.pen({ color: pal.ink, width: 0.32, speed: 58, alpha: 1 });
+    S.jit = 0.14;
+    var stats = interpret(got.spec, S, LH, pal);
+
+    return {
+      box: boundsOf(S.acts, S),
+      actions: S.acts,
+      palette: pal,
+      localH: LH,
+      note: typeof got.spec.note === "string" ? got.spec.note.slice(0, 60) : null,
+      done: got.spec.done === true,
+      model: got.model,
       stats: stats
     };
   }
 
   global.AI = {
     design: design,
+    designStep: designStep,
+    incrementalTier: incrementalTier,
+    MAX_ROUNDS: 8,
     interpret: interpret,
     TIERS: TIERS,
     MODELS: MODELS,

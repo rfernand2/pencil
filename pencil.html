@@ -123,6 +123,17 @@
 
   .row { display: flex; gap: 8px; }
   .row > * { flex: 1; }
+  /* One shared checkbox row: a solid, obviously-clickable block rather than a
+     bare tick floating next to text. */
+  .chkrow {
+    display: flex; align-items: center; gap: 8px; cursor: pointer;
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 9px;
+    padding: 9px 11px; font-size: 12px; color: var(--text);
+  }
+  .chkrow:hover { border-color: #46506045; background: var(--btn-hi); }
+  .chkrow input { accent-color: var(--accent); width: 15px; height: 15px; flex: none; }
+  .chkrow.off { opacity: .45; cursor: not-allowed; }
+  .chkrow small { display: block; color: var(--dim); font-size: 11px; margin-top: 2px; }
   .seg { display: flex; gap: 6px; flex-wrap: wrap; }
   .seg button { flex: 1 1 auto; font-size: 12.5px; padding: 7px 8px; }
 
@@ -390,6 +401,11 @@
     </div>
     <div style="font-size:11.5px;color:var(--dim);margin-top:6px" id="designerNote"></div>
 
+    <label class="chkrow" id="incRow" style="margin-top:10px">
+      <input type="checkbox" id="incremental" />
+      <span>Incremental drawing<small id="incNote">the model watches and keeps adding</small></span>
+    </label>
+
     <section style="margin:16px 0 0">
       <div class="lbl"><span>Drawing speed</span><span id="speedVal">1.0×</span></div>
       <input type="range" id="speed" min="0.3" max="6" step="0.1" value="1.4" />
@@ -426,8 +442,8 @@
       <button id="keep">★ Save to gallery</button>
     </div>
     <button id="openGal">Gallery</button>
-    <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--dim);cursor:pointer">
-      <input type="checkbox" id="autosave" style="accent-color:var(--accent);width:15px;height:15px" />
+    <label class="chkrow">
+      <input type="checkbox" id="autosave" />
       Save every finished drawing automatically
     </label>
     <div id="bar"><i></i></div>
@@ -510,6 +526,7 @@
     chips: [],
     designer: "local",
     tier: "balanced",
+    incremental: false,
     drawing: false,
     lastPlan: null
   };
@@ -522,16 +539,40 @@
     onTool: function (id) { highlightTool(id); },
     onProgress: function (p) { barEl.style.width = (p * 100).toFixed(1) + "%"; },
     onDone: function () {
-      state.drawing = false;
-      setBusy(false);
-      say(state.lastPlan ? "Finished — " + state.lastPlan : "Finished.", "ok");
-      if ($("autosave").checked && !savedThis) {
-        keepDrawing(true).then(function (rec) {
-          if (rec) say("Finished — " + rec.title + " (saved to gallery).", "ok");
-        });
-      }
+      /* Incremental mode parks a continuation here: the round has finished
+         drawing, so the loop can go and ask for the next one. */
+      if (whenDone) { var next = whenDone; whenDone = null; next(); return; }
+      finishRun();
     }
   });
+
+  /* The tail of a completed drawing, whichever mode produced it. */
+  function finishRun() {
+    state.drawing = false;
+    setBusy(false);
+    say(state.lastPlan ? "Finished — " + state.lastPlan : "Finished.", "ok");
+    if ($("autosave").checked && !savedThis) {
+      keepDrawing(true).then(function (rec) {
+        if (rec) say("Finished — " + rec.title + " (saved to gallery).", "ok");
+      });
+    }
+  }
+
+  /* Resolved when the current batch has finished animating. */
+  var whenDone = null;
+
+  function animate(actions, add) {
+    return new Promise(function (resolve) {
+      whenDone = resolve;
+      if (add) player.append(actions); else player.play(actions);
+    });
+  }
+
+  /* Anything that stops the player mid-round has to let the waiter go, or an
+     incremental run would sit forever waiting for a drawing that was binned. */
+  function releaseAnimation() {
+    if (whenDone) { var f = whenDone; whenDone = null; f(); }
+  }
 
   function say(msg, kind) {
     statusEl.textContent = msg;
@@ -776,6 +817,7 @@
     Array.prototype.forEach.call(picks.children, function (c) { c.classList.remove("sel"); });
     if (el) el.classList.add("sel");
     player.stop();
+    releaseAnimation();
     lastResult = null;
     pic.onload = function () {
       state.surface.natW = pic.naturalWidth;
@@ -1109,6 +1151,11 @@
     refreshDepth();
   }
 
+  function tierLabel(id) {
+    var t = AI.TIERS.filter(function (x) { return x.id === id; })[0];
+    return t ? t.label : id;
+  }
+
   function refreshDepth() {
     var i = parseInt($("depth").value, 10) || 0;
     state.tier = AI.TIERS[i].id;
@@ -1116,15 +1163,35 @@
       c.classList.toggle("on", k === i);
     });
     var isAI = state.designer !== "local";
-    $("depthWrap").classList.toggle("off", !isAI);
+    var inc = isAI && $("incremental").checked;
+
+    /* Incremental runs many rounds, so it always uses the family's smallest
+       model — the slider would only be a way to make it expensive. */
+    $("depthWrap").classList.toggle("off", !isAI || inc);
+    $("incRow").classList.toggle("off", !isAI);
+    $("incremental").disabled = !isAI;
+    if (!isAI) $("incremental").checked = false;
+    state.incremental = inc;
+
     if (!isAI) {
       $("designerNote").textContent = DESIGNERS[0].note;
+      $("incNote").textContent = "needs one of the AI designers";
       return;
     }
-    var m = AI.modelFor(state.designer, state.tier);
-    $("designerNote").textContent = AI.TIERS[i].label + " — " + m.model +
-      (m.effort ? " (effort " + m.effort + ")" : "") + " · " + AI.TIERS[i].hint;
+    var incTier = AI.incrementalTier(state.designer);
+    var m = AI.modelFor(state.designer, inc ? incTier : state.tier);
+    if (inc) {
+      $("designerNote").textContent = tierLabel(incTier) + " — " + m.model +
+        " · up to " + AI.MAX_ROUNDS + " rounds, one element each";
+      $("incNote").textContent = "it sees the picture after every element and stops when it's happy";
+    } else {
+      $("designerNote").textContent = AI.TIERS[i].label + " — " + m.model +
+        (m.effort ? " (effort " + m.effort + ")" : "") + " · " + AI.TIERS[i].hint;
+      $("incNote").textContent = "the model watches and keeps adding";
+    }
   }
+
+  $("incremental").onchange = refreshDepth;
 
   /* ---------- drawing area overlay ---------- */
 
@@ -1148,10 +1215,15 @@
 
   /* ---------- designing modal ---------- */
 
-  function openModal(label, tierIdx, model) {
+  function openModal(label, tierIdx, model, step) {
     var t = AI.TIERS[tierIdx];
+    $("modalTitle").textContent = step ? "Drawing, round " + step.round + "…" : "Designing your drawing…";
     $("modalSub").innerHTML = "<b>" + label + "</b> · " + t.label + " · " + model;
-    $("modalHint").textContent = t.hint;
+    $("modalHint").textContent = step
+      ? (step.round === 1
+        ? "Looking at the picture and starting it off."
+        : "Looking at what it just drew, then adding to it.")
+      : t.hint;
     $("clock").textContent = "0s";
     $("modal").classList.add("show");
     $("cancel").focus();
@@ -1162,8 +1234,8 @@
       $("clock").textContent = s < 60
         ? Math.floor(s) + "s"
         : Math.floor(s / 60) + "m " + String(Math.floor(s % 60)) + "s";
-      if (s > 25 && s < 26) $("modalHint").textContent = "Still going — bigger models think for a while.";
-      if (s > 90 && s < 91) $("modalHint").textContent = "This one is taking its time. Cancel any time.";
+      if (!step && s > 25 && s < 26) $("modalHint").textContent = "Still going — bigger models think for a while.";
+      if (!step && s > 90 && s < 91) $("modalHint").textContent = "This one is taking its time. Cancel any time.";
     }, 200);
     return timer;
   }
@@ -1198,6 +1270,85 @@
   var lastMeta = null;      // how the drawing on screen was made
   var savedThis = false;    // so autosave doesn't store the same drawing twice
 
+  /* The picture as the model sees it: background plus everything drawn so far.
+     Downscaled hard — the model is reading composition, not pixels, and every
+     round pays for these tokens again. */
+  function snapshot() {
+    try {
+      return STORE.fitCanvas(composite(), 768).toDataURL("image/jpeg", 0.72).split(",")[1];
+    } catch (e) {
+      return null;   /* a picture the browser won't let us read must not stop the drawing */
+    }
+  }
+
+  /* Incremental: the model draws one element, looks at the result, and decides
+     whether to keep going. Each round is a fresh call carrying the new picture. */
+  async function runIncremental(s, kw, seed, name, controller) {
+    var history = [], rounds = 0, model = null, ops = 0, dropped = 0, stoppedEarly = false;
+    var hint = COMPOSE.plan(kw, PX.makeRand(seed)).palette;
+    var tier = AI.incrementalTier(state.designer);
+    var tierIdx = AI.TIERS.map(function (t) { return t.id; }).indexOf(tier);
+
+    for (var round = 1; round <= AI.MAX_ROUNDS; round++) {
+      var m = AI.modelFor(state.designer, tier);
+      pending = { controller: controller, timer: openModal(name, Math.max(0, tierIdx), m.model, { round: round }) };
+      say(round === 1
+        ? name + " is looking at the picture…"
+        : name + " is looking at what it drew (round " + round + ")…");
+
+      var step;
+      try {
+        step = await AI.designStep({
+          provider: state.designer, keywords: kw, region: s.region,
+          natW: s.natW, natH: s.natH, tone: s.tone, surface: s.name,
+          seed: (seed + round * 7919) >>> 0, paletteHint: hint, tier: tier,
+          image: snapshot(), round: round, maxRounds: AI.MAX_ROUNDS,
+          history: history, signal: controller.signal
+        });
+      } catch (err) {
+        /* Cancelling round 4 doesn't undo rounds 1-3 — they are ink on the
+           picture. Carry the count out so the message can say so. */
+        if (err && err.cancelled) err.rounds = history.length;
+        throw err;
+      } finally {
+        closeModal();
+      }
+
+      rounds = round;
+      model = step.model;
+      ops += step.stats.drawn;
+      dropped += step.stats.skipped;
+
+      /* A round that produced nothing usable is a dead end, not a picture:
+         stop rather than burn the remaining rounds on the same mistake. */
+      if (!step.stats.drawn) {
+        if (round === 1) throw new Error("The model returned no usable strokes.");
+        stoppedEarly = true;
+        break;
+      }
+
+      history.push({ note: step.note || "an element", box: step.box });
+      lastResult = step;
+      say(name + " added " + (step.note || "an element") +
+        " (round " + round + " of " + AI.MAX_ROUNDS + ") — drawing…");
+      await animate(step.actions, round > 1);
+
+      if (controller.signal.aborted) { var c = new Error("Cancelled."); c.cancelled = true; throw c; }
+      if (step.done) break;
+    }
+
+    var notes = history.map(function (h) { return h.note; });
+    lastMeta = {
+      designer: state.designer, designerLabel: name, model: model,
+      tier: tierLabel(tier), mode: "incremental", rounds: rounds, elements: notes,
+      surfaceName: s.name, keywords: kw,
+      title: notes.join(", "), ops: ops, dropped: dropped
+    };
+    state.lastPlan = (notes.length
+      ? notes.length + (notes.length === 1 ? " element: " : " elements: ") + notes.join(", ")
+      : "an original design") + (stoppedEarly ? " (it ran dry early)" : "");
+  }
+
   async function go() {
     if (!state.surface) { say("Pick a picture first.", "err"); return; }
     if (state.drawing) return;
@@ -1228,6 +1379,11 @@
           riff: result.riff, feature: result.feature,
           scene: p.scene, palette: p.palette
         };
+      } else if (state.incremental) {
+        var incName = DESIGNERS.filter(function (d) { return d.id === state.designer; })[0].label;
+        await runIncremental(s, kw, seed, incName, new AbortController());
+        finishRun();   /* the loop animated its own rounds, so onDone won't */
+        return;
       } else {
         var name = DESIGNERS.filter(function (d) { return d.id === state.designer; })[0].label;
         var tierIdx = parseInt($("depth").value, 10) || 0;
@@ -1241,7 +1397,8 @@
           result = await AI.design({
             provider: state.designer, keywords: kw, region: s.region,
             natW: s.natW, natH: s.natH, tone: s.tone, surface: s.name,
-            features: s.features, seed: seed, paletteHint: hint, tier: state.tier, signal: controller.signal
+            features: s.features, seed: seed, paletteHint: hint, tier: state.tier,
+            image: snapshot(), signal: controller.signal
           });
         } finally {
           closeModal();
@@ -1261,7 +1418,12 @@
       closeModal();
       state.drawing = false;
       setBusy(false);
-      if (err && err.cancelled) say("Cancelled — nothing drawn.");
+      if (err && err.cancelled) {
+        say(err.rounds
+          ? "Cancelled after " + err.rounds + (err.rounds === 1 ? " element" : " elements") +
+            " — what was drawn stays."
+          : "Cancelled — nothing drawn.");
+      }
       else { say(String(err.message || err), "err"); console.error(err); }
     }
   }
@@ -1270,7 +1432,7 @@
   $("again").onclick = go;
   $("skip").onclick = function () { if (player.actions.length) player.finishNow(); };
   $("clear").onclick = function () {
-    player.stop(); player.clear(); lastResult = null;
+    player.stop(); releaseAnimation(); player.clear(); lastResult = null;
     trayPlaceholder();
     barEl.style.width = "0%"; say("Cleared.");
   };
@@ -1322,6 +1484,7 @@
         designer: m.designer, designerLabel: m.designerLabel, model: m.model, tier: m.tier,
         surfaceName: m.surfaceName || s.name, keywords: m.keywords || "",
         scene: m.scene, palette: m.palette, ops: m.ops, dropped: m.dropped,
+        mode: m.mode, rounds: m.rounds, elements: m.elements,
         w: full.width, h: full.height, size: blob.size,
         thumb: thumb, image: blob
       });
@@ -1447,6 +1610,10 @@
     }
     row("Designer", it.designerLabel + (it.tier ? " · " + it.tier : ""));
     row("Model", it.model);
+    if (it.mode === "incremental") {
+      row("Mode", "Incremental · " + it.rounds + (it.rounds === 1 ? " round" : " rounds"));
+      if (it.elements && it.elements.length) row("Elements", it.elements.join(", "));
+    }
     row("Background", it.surfaceName);
     row("Keywords", it.keywords || "(none)");
     row("Made", new Date(it.createdAt).toLocaleString());

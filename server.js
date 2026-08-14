@@ -74,7 +74,9 @@ function clientIP(req) {
 
 /* ---------- the design proxy ---------- */
 
-function readBody(req, limit = 200e3) {
+/* Generous enough for a prompt plus a base64 JPEG of the picture, and no more:
+   the image is the only reason a design request is ever big. */
+function readBody(req, limit = 3e6) {
   return new Promise((resolve, reject) => {
     let n = 0;
     const chunks = [];
@@ -88,11 +90,31 @@ function readBody(req, limit = 200e3) {
   });
 }
 
-async function callProvider(provider, m, prompt) {
+/* The picture, in each provider's own shape. Always JPEG — see js/ai.js. */
+function anthropicContent(prompt, image) {
+  if (!image) return prompt;
+  return [
+    { type: "image", source: { type: "base64", media_type: "image/jpeg", data: image } },
+    { type: "text", text: prompt }
+  ];
+}
+
+function openaiContent(prompt, image) {
+  if (!image) return prompt;
+  return [
+    { type: "image_url", image_url: { url: "data:image/jpeg;base64," + image } },
+    { type: "text", text: prompt }
+  ];
+}
+
+async function callProvider(provider, m, prompt, image) {
   const key = providerKey(provider);
 
   if (provider === "anthropic") {
-    const body = { model: m.model, max_tokens: m.maxTokens, messages: [{ role: "user", content: prompt }] };
+    const body = {
+      model: m.model, max_tokens: m.maxTokens,
+      messages: [{ role: "user", content: anthropicContent(prompt, image) }]
+    };
     if (m.effort) body.output_config = { effort: m.effort };
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -109,7 +131,10 @@ async function callProvider(provider, m, prompt) {
     const r = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
       headers: { "content-type": "application/json", authorization: "Bearer " + key },
-      body: JSON.stringify({ model: m.model, max_tokens: m.maxTokens, messages: [{ role: "user", content: prompt }] })
+      body: JSON.stringify({
+        model: m.model, max_tokens: m.maxTokens,
+        messages: [{ role: "user", content: openaiContent(prompt, image) }]
+      })
     });
     if (!r.ok) throw new Error("Grok " + r.status + ": " + (await r.text()).slice(0, 200));
     const d = await r.json();
@@ -123,7 +148,11 @@ async function callProvider(provider, m, prompt) {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
+        contents: [{
+          parts: image
+            ? [{ inline_data: { mime_type: "image/jpeg", data: image } }, { text: prompt }]
+            : [{ text: prompt }]
+        }],
         generationConfig: { maxOutputTokens: m.maxTokens, responseMimeType: "application/json" }
       })
     });
@@ -154,10 +183,16 @@ async function handleDesign(req, res) {
   const provider = String(body.provider || "");
   const tier = String(body.tier || "balanced");
   const prompt = String(body.prompt || "");
+  const image = body.image === undefined || body.image === null ? "" : String(body.image);
 
   if (!providerKey(provider)) return sendJSON(res, 404, { error: "No server key for " + provider + "." });
   if (!TIERS.some(t => t.id === tier)) return sendJSON(res, 400, { error: "Unknown tier." });
   if (prompt.length < 20 || prompt.length > 40000) return sendJSON(res, 400, { error: "Bad prompt." });
+  /* The image is forwarded to a paid API, so check it really is base64 of a
+     sane size rather than passing whatever arrived straight through. */
+  if (image && (image.length > 2.4e6 || !/^[A-Za-z0-9+/=]+$/.test(image))) {
+    return sendJSON(res, 400, { error: "Bad image." });
+  }
 
   /* Count against the limit only once the request is real, so a typo or a
      probe doesn't cost someone their quota. */
@@ -173,7 +208,7 @@ async function handleDesign(req, res) {
   const m = MODELS[provider][tier];
 
   try {
-    const text = await callProvider(provider, m, prompt);
+    const text = await callProvider(provider, m, prompt, image);
     sendJSON(res, 200, { text, model: m.model });
   } catch (e) {
     console.error("[design]", provider, tier, e.message);

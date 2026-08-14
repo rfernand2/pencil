@@ -85,9 +85,14 @@ the calmest large one. **Show drawing area** overlays whatever it settled on.
 - **Built-in** — instant and offline. Picks a feature of the picture and a way to build on
   it, then scatters a few supporting details in the clear space. A keyword it does not
   recognise gets hand-lettered into the drawing instead.
-- **Claude / Grok / Gemini** — the model is handed the drawing vocabulary and the region's
-  dimensions, and returns a JSON list of ops. It can use the built-in motifs *and* invent
-  its own strokes, so the results are far more varied.
+- **Claude / Grok / Gemini** — the model is handed **the picture itself**, the drawing
+  vocabulary and the region's dimensions, and returns a JSON list of ops. It can use the
+  built-in motifs *and* invent its own strokes, so the results are far more varied.
+
+The picture goes up as a downscaled JPEG (768px, ~18KB of base64) alongside the prompt, and
+the prompt says where the drawing box sits inside it — so the model can tie what it can see
+to the coordinates it has to draw in. The features list still goes too: the image says what
+the surface looks like, the list says exactly where things are.
 
 The model never runs code. Every op is validated and clamped before it is drawn; anything
 unrecognised is counted and dropped, and the status line tells you how many.
@@ -110,6 +115,49 @@ genuinely different-sized model, not just a different setting:
 Quick returns a fast sketch in a few seconds; Deep thinks for a minute or two and produces
 a much more considered drawing. Note Haiku 4.5 is deliberately sent *without* an `effort`
 parameter — it rejects one with a 400.
+
+### Incremental drawing
+
+Tick **Incremental drawing** and the model stops designing the whole picture up front. It
+draws one element, is shown the result, and decides what the picture needs next:
+
+```
+    background ──▶ model ──▶ one element ──▶ animate ──▶ snapshot ──┐
+                     ▲                                              │
+                     └──────────────────────────────────────────────┘
+                              until it says done, or 8 rounds
+```
+
+Round 1 is the main subject in outline. Every round after that adds one thing of a *kind*
+it hasn't drawn yet — a companion, the setting, a foreground detail, or (from round 4) a
+single pass of hatching. The model sets `"done": true` when another element would clutter
+the picture; most drawings finish in four or five rounds without hitting the cap.
+
+Two things are worked out in code rather than left to the model, because small models are
+bad at both. The **occupied box** of each round is measured from the strokes it produced and
+fed back in local coordinates, so it knows what space is taken; and the **emptiest cell** of
+a 3×3 grid over the drawing area is offered as the place to put the next element, with ties
+broken toward the existing work so the picture stays a picture instead of scattering into
+the corners. Without those, a small model stacks its whole scene in one blob.
+
+The prompt also spells out that there is no airbrush here — every op becomes a visible
+pencil line, so "subtle shading", "a vignette" and "atmosphere" come out as a scribble of
+hard grey lines. Told that, models draw *things* instead of effects.
+
+Because it is one call per element, incremental uses the smallest model in the family:
+
+| Family | Incremental model | Why |
+| --- | --- | --- |
+| Claude | `claude-haiku-4-5` | fine on the quick tier |
+| Gemini | `gemini-3.5-flash-lite` | fine on the quick tier |
+| Grok | `grok-4.3` (balanced) | the quick tier is *non-reasoning* and can't place an element next to the last one — measured, it piles every round into one tangle, while `grok-4.3` running the identical loop draws a clean scene |
+
+**Cancel** stops the loop between rounds and keeps whatever is already on the picture — it
+is ink, not a preview. The gallery records the mode, the round count and every element in
+the order it was drawn.
+
+> On a deployed copy each round is a separate call and counts separately against
+> `PENCIL_RATE_LIMIT`, so the default of 20/hour is about three incremental drawings.
 
 ## The gallery
 

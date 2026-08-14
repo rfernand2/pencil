@@ -36,6 +36,13 @@
     }
   };
 
+  /* Incremental mode makes one call per element, so it uses the smallest model
+     in the family. Exception, measured rather than assumed: xai's quick model is
+     non-reasoning and cannot place a new element relative to the ones already on
+     the page — it piles every round into one scribble, while grok-4.3 running the
+     same loop draws a clean scene. Claude and Gemini are fine on quick. */
+  var INCREMENTAL = { anthropic: "quick", xai: "balanced", gemini: "quick" };
+
   /* Which env var holds each provider's key when running server-side. */
   var ENV_KEYS = {
     anthropic: "ANTHROPIC_API_KEY",
@@ -43,5 +50,5 @@
     gemini: "GEMINI_API_KEY"
   };
 
-  return { TIERS: TIERS, MODELS: MODELS, ENV_KEYS: ENV_KEYS };
+  return { TIERS: TIERS, MODELS: MODELS, INCREMENTAL: INCREMENTAL, ENV_KEYS: ENV_KEYS };
 });

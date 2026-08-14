@@ -398,8 +398,12 @@
    *     anyway, and only costs time when there was no lift to hide in.
    * ======================================================================= */
 
-  function annotateTools(actions) {
-    var out = [], order = [], seen = {}, cur = null;
+  /* `prior` carries the tool state across an append, so round 2 doesn't walk
+     back to the tray for a pencil that is already in the hand. */
+  function annotateTools(actions, prior) {
+    var out = [], order = prior && prior.order ? prior.order.slice() : [];
+    var seen = {}, cur = (prior && prior.cur) || null;
+    if (prior && prior.seen) for (var s in prior.seen) seen[s] = true;
 
     for (var i = 0; i < actions.length; i++) {
       var a = actions[i];
@@ -430,7 +434,7 @@
       }
       out.push(a);
     }
-    return { actions: out, tools: order };
+    return { actions: out, tools: order, state: { order: order, seen: seen, cur: cur } };
   }
 
   /* =========================================================================
@@ -453,6 +457,8 @@
     this.reserveX = 0;
     this.reserveY = 0;
     this.actions = [];
+    this.base = 0;          // where the batch being animated starts
+    this._toolState = null; // tool continuity across appends
     this.W = 300; this.H = 400;
     this.actI = 0;
     this.phase = 0;
@@ -518,22 +524,45 @@
     var ann = annotateTools(actions);
     this.actions = ann.actions;
     this.tools = ann.tools;
+    this._toolState = ann.state;
     this.tool = null;
     this.tipColor = null;
     this.toolFade = 1;
     this.onTools(ann.tools);
-    actions = this.actions;
-    this.actI = 0;
+    this.base = 0;
+    this.clear();
+    this.pencil.x = 6; this.pencil.y = 4; this.pencil.angle = 0.9;
+    this._start();
+  };
+
+  /* Add to the drawing already on screen instead of replacing it: the ink
+     layer is left alone and only the new actions are animated. Incremental
+     mode leans on this — each round the model sees what the last one left. */
+  Player.prototype.append = function (actions) {
+    if (!this.actions.length) return this.play(actions);
+    this.stop();
+    var ann = annotateTools(actions, this._toolState);
+    this._toolState = ann.state;
+    this.base = this.actions.length;
+    this.actions = this.actions.concat(ann.actions);
+    this.tools = ann.tools;
+    this.onTools(ann.tools);
+    this._start();
+  };
+
+  /* Animate from `base` to the end. The progress bar measures the current
+     batch, not the whole accumulated drawing — otherwise it would crawl
+     backwards every time a round added to the total. */
+  Player.prototype._start = function () {
+    this.actI = this.base;
     this.phase = 0;
     this._drawn = 0;
     this._total = 0;
-    for (var i = 0; i < actions.length; i++) {
-      var a = actions[i];
+    for (var i = this.base; i < this.actions.length; i++) {
+      var a = this.actions[i];
       this._total += a.type === "stroke" ? a.length : 0.25;
     }
     if (this._total <= 0) this._total = 1;
-    this.clear();
-    this.pencil.x = 6; this.pencil.y = 4; this.pencil.angle = 0.9;
     this.running = true;
     this.lastNow = 0;
     this.raf = requestAnimationFrame(this._loop);
