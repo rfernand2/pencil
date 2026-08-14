@@ -141,6 +141,25 @@ async function callProvider(provider, m, prompt, image) {
     return (d.choices && d.choices[0] && d.choices[0].message.content) || "";
   }
 
+  if (provider === "openai") {
+    const body = {
+      model: m.model,
+      max_completion_tokens: m.maxTokens,
+      messages: [{ role: "user", content: openaiContent(prompt, image) }]
+    };
+    if (m.effort) body.reasoning_effort = m.effort;
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: "Bearer " + key },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error("ChatGPT " + r.status + ": " + (await r.text()).slice(0, 200));
+    const d = await r.json();
+    const c = d.choices && d.choices[0];
+    if (c && c.finish_reason === "length") throw new Error("ChatGPT ran out of tokens.");
+    return (c && c.message && c.message.content) || "";
+  }
+
   if (provider === "gemini") {
     const r = await fetch(
       "https://generativelanguage.googleapis.com/v1beta/models/" + m.model +

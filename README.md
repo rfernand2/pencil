@@ -85,7 +85,7 @@ the calmest large one. **Show drawing area** overlays whatever it settled on.
 - **Built-in** — instant and offline. Picks a feature of the picture and a way to build on
   it, then scatters a few supporting details in the clear space. A keyword it does not
   recognise gets hand-lettered into the drawing instead.
-- **Claude / Grok / Gemini** — the model is handed **the picture itself**, the drawing
+- **Claude / Grok / Gemini / ChatGPT** — the model is handed **the picture itself**, the drawing
   vocabulary and the region's dimensions, and returns a JSON list of ops. It can use the
   built-in motifs *and* invent its own strokes, so the results are far more varied.
 
@@ -106,15 +106,28 @@ and leaves the picture untouched.
 The slider under the designer buttons picks how hard the model works. Each step is a
 genuinely different-sized model, not just a different setting:
 
-| Step | Claude | Grok | Gemini |
-| --- | --- | --- | --- |
-| **Quick** | `claude-haiku-4-5` | `grok-4.20-0309-non-reasoning` | `gemini-3.5-flash-lite` |
-| **Balanced** | `claude-sonnet-5` (effort low) | `grok-4.3` | `gemini-3.7-flash` |
-| **Deep** | `claude-opus-5` (effort high) | `grok-4.6` | `gemini-3.1-pro-preview` |
+| Step | Claude | Grok | Gemini | ChatGPT |
+| --- | --- | --- | --- | --- |
+| **Quick** | `claude-haiku-4-5` | `grok-4.20-0309-non-reasoning` | `gemini-3.5-flash-lite` | `gpt-5.6-luna` |
+| **Balanced** | `claude-sonnet-5` (effort low) | `grok-4.3` | `gemini-3.7-flash` | `gpt-5.6-terra` (effort low) |
+| **Deep** | `claude-opus-5` (effort high) | `grok-4.6` | `gemini-3.1-pro-preview` | `gpt-5.6-sol` (effort high) |
 
 Quick returns a fast sketch in a few seconds; Deep thinks for a minute or two and produces
-a much more considered drawing. Note Haiku 4.5 is deliberately sent *without* an `effort`
-parameter — it rejects one with a 400.
+a much more considered drawing. The slider governs **both** modes — one-shot and
+incremental — so the choice of how hard the model works is always yours.
+
+Two provider quirks, both found the hard way. Haiku 4.5 is deliberately sent *without* an
+`effort` parameter — it rejects one with a 400. And the `gpt-5.6` family is ordered by
+measurement rather than by its names: on one design each, `luna` took 23s for 109 ops,
+`terra` 26s, and `sol` 73s for 154 ops and twice anyone's reasoning tokens. Moon, earth, sun.
+
+### When a model fumbles the JSON
+
+A long op list is worth more than the one op a model got wrong in the middle of it, so a
+reply that won't parse is cut back to the last op that does and drawn anyway — the same
+for a reply that was truncated mid-array. Only a reply with nothing salvageable in it is
+an error. `gpt-5.6-terra` emits a malformed op every so often; without this you lose 150
+good ops to one bad one.
 
 ### Incremental drawing
 
@@ -144,13 +157,15 @@ The prompt also spells out that there is no airbrush here — every op becomes a
 pencil line, so "subtle shading", "a vignette" and "atmosphere" come out as a scribble of
 hard grey lines. Told that, models draw *things* instead of effects.
 
-Because it is one call per element, incremental uses the smallest model in the family:
-
-| Family | Incremental model | Why |
-| --- | --- | --- |
-| Claude | `claude-haiku-4-5` | fine on the quick tier |
-| Gemini | `gemini-3.5-flash-lite` | fine on the quick tier |
-| Grok | `grok-4.3` (balanced) | the quick tier is *non-reasoning* and can't place an element next to the last one — measured, it piles every round into one tangle, while `grok-4.3` running the identical loop draws a clean scene |
+Incremental obeys the same **Quick → Deep** slider as the one-shot mode, and the choice
+matters more here because it compounds over the rounds. On the ace of clubs, `gpt-5.6-luna`
+(Quick) ran the full eight rounds and produced a sticker sheet — key, padlock, crown,
+feather, watch, compass — while `gpt-5.6-terra` (Balanced) drew a crown resting on the
+diamond pip, a laurel wreath around it and a key below, then stopped itself at four.
+Grok's Quick tier is *non-reasoning* and can't place an element next to the last one: it
+piles every round into one tangle where `grok-4.3` on the identical loop draws a clean
+scene. Balanced is the sweet spot for this mode; Quick is for when you want it fast and
+don't mind a scrapbook.
 
 **Cancel** stops the loop between rounds and keeps whatever is already on the picture — it
 is ink, not a preview. The gallery records the mode, the round count and every element in
@@ -185,7 +200,8 @@ model IDs are editable:
 window.PENCIL_KEYS = {
   anthropic: { key: "sk-ant-…" },
   xai:       { key: "xai-…" },
-  gemini:    { key: "AIza…" }
+  gemini:    { key: "AIza…" },
+  openai:    { key: "sk-proj-…" }
 };
 ```
 
@@ -225,7 +241,7 @@ cannot spend a penny of API credit. To turn the AI designers on:
 
 ```
 fly secrets set PENCIL_PASSWORD=pick-something
-fly secrets set ANTHROPIC_API_KEY=... XAI_API_KEY=... GEMINI_API_KEY=...
+fly secrets set ANTHROPIC_API_KEY=... XAI_API_KEY=... GEMINI_API_KEY=... OPENAI_API_KEY=...
 ```
 
 Set whichever providers you want; each one that has a key appears as a button. Setting

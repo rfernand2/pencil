@@ -196,7 +196,9 @@
   }
   .summary img, .summary .ico {
     width: 38px; min-width: 38px; height: 30px; border-radius: 5px;
-    object-fit: cover; background: var(--panel-2);
+    /* contain, not cover: the whole picture at its own aspect ratio, so a
+       portrait card reads as a card rather than a cropped strip of its middle */
+    object-fit: contain; background: var(--panel-2);
     display: grid; place-items: center; color: var(--dim); font-size: 15px;
   }
   .summary .txt { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
@@ -1112,7 +1114,8 @@
     { id: "local", label: "Built-in", note: "Instant, works offline. Composes from a library of hand-coded motifs." },
     { id: "anthropic", label: "Claude", note: "Claude Opus 5 invents the strokes at run time. Slower, far more varied." },
     { id: "xai", label: "Grok", note: "Grok designs the strokes at run time." },
-    { id: "gemini", label: "Gemini", note: "Gemini designs the strokes at run time." }
+    { id: "gemini", label: "Gemini", note: "Gemini designs the strokes at run time." },
+    { id: "openai", label: "ChatGPT", note: "The gpt-5.6 family designs the strokes at run time." }
   ];
 
   function buildDesigners() {
@@ -1165,9 +1168,7 @@
     var isAI = state.designer !== "local";
     var inc = isAI && $("incremental").checked;
 
-    /* Incremental runs many rounds, so it always uses the family's smallest
-       model — the slider would only be a way to make it expensive. */
-    $("depthWrap").classList.toggle("off", !isAI || inc);
+    $("depthWrap").classList.toggle("off", !isAI);
     $("incRow").classList.toggle("off", !isAI);
     $("incremental").disabled = !isAI;
     if (!isAI) $("incremental").checked = false;
@@ -1178,10 +1179,10 @@
       $("incNote").textContent = "needs one of the AI designers";
       return;
     }
-    var incTier = AI.incrementalTier(state.designer);
-    var m = AI.modelFor(state.designer, inc ? incTier : state.tier);
+    var m = AI.modelFor(state.designer, state.tier);
     if (inc) {
-      $("designerNote").textContent = tierLabel(incTier) + " — " + m.model +
+      $("designerNote").textContent = AI.TIERS[i].label + " — " + m.model +
+        (m.effort ? " (effort " + m.effort + ")" : "") +
         " · up to " + AI.MAX_ROUNDS + " rounds, one element each";
       $("incNote").textContent = "it sees the picture after every element and stops when it's happy";
     } else {
@@ -1286,7 +1287,7 @@
   async function runIncremental(s, kw, seed, name, controller) {
     var history = [], rounds = 0, model = null, ops = 0, dropped = 0, stoppedEarly = false;
     var hint = COMPOSE.plan(kw, PX.makeRand(seed)).palette;
-    var tier = AI.incrementalTier(state.designer);
+    var tier = state.tier;
     var tierIdx = AI.TIERS.map(function (t) { return t.id; }).indexOf(tier);
 
     for (var round = 1; round <= AI.MAX_ROUNDS; round++) {

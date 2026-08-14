@@ -231,11 +231,6 @@
    * different settings. Shared with the server proxy — see js/models.js. */
   var TIERS = global.PENCIL_MODELS.TIERS;
   var MODELS = global.PENCIL_MODELS.MODELS;
-  var INCREMENTAL = global.PENCIL_MODELS.INCREMENTAL || {};
-
-  /* The tier incremental mode uses for a family — smallest that can actually
-     hold a composition together. See js/models.js. */
-  function incrementalTier(provider) { return INCREMENTAL[provider] || "quick"; }
 
   /* Providers the server will proxy for, discovered at startup. Lets a deployed
    * copy use keys held as server secrets instead of shipping them to the browser. */
@@ -278,7 +273,8 @@
 
   function available() {
     var out = [];
-    ["anthropic", "xai", "gemini"].forEach(function (p) {
+    /* Driven off the model table, so adding a provider there is enough. */
+    Object.keys(MODELS).forEach(function (p) {
       var c = keysFor(p);
       if ((c && c.key) || proxied.indexOf(p) >= 0) out.push(p);
     });
@@ -421,7 +417,32 @@
     return ((cand.content && cand.content.parts) || []).map(function (p) { return p.text || ""; }).join("");
   }
 
-  var CALLERS = { anthropic: callAnthropic, xai: callXAI, gemini: callGemini };
+  /* OpenAI speaks the same chat shape as xAI but wants max_completion_tokens,
+     and takes the tier's effort as reasoning_effort. */
+  async function callOpenAI(prompt, cfg, m, signal, image) {
+    var body = {
+      model: m.model,
+      max_completion_tokens: m.maxTokens,
+      messages: [{ role: "user", content: openaiContent(prompt, image) }]
+    };
+    if (m.effort) body.reasoning_effort = m.effort;
+
+    var res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      signal: signal,
+      headers: { "content-type": "application/json", "authorization": "Bearer " + cfg.key },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) throw new Error("ChatGPT " + res.status + ": " + (await res.text()).slice(0, 300));
+    var data = await res.json();
+    var choice = data.choices && data.choices[0];
+    if (choice && choice.finish_reason === "length") {
+      throw new Error("ChatGPT ran out of tokens — raise maxTokens in keys.local.js.");
+    }
+    return (choice && choice.message && choice.message.content) || "";
+  }
+
+  var CALLERS = { anthropic: callAnthropic, xai: callXAI, gemini: callGemini, openai: callOpenAI };
 
   /* ---------- parsing ---------- */
 
@@ -443,8 +464,60 @@
       else if (ch === "{") depth++;
       else if (ch === "}") { depth--; if (depth === 0) { end = i + 1; break; } }
     }
-    if (end < 0) throw new Error("The model's JSON was cut off — try again or lower the detail.");
-    return JSON.parse(t.slice(start, end));
+    var body = end < 0 ? t.slice(start) : t.slice(start, end);
+    try {
+      return JSON.parse(body);
+    } catch (e) {
+      /* Models do occasionally fumble one op in the middle of a long list, or
+         get cut off mid-array. Losing 150 good ops to one bad one is the wrong
+         trade, so salvage the ops that parsed and draw those. */
+      var saved = salvage(body);
+      if (saved) return saved;
+      throw new Error(end < 0
+        ? "The model's JSON was cut off — try again or lower the detail."
+        : "The model's JSON was malformed and nothing could be salvaged.");
+    }
+  }
+
+  /* Cut the ops array back to the last op that parses, and close it up. */
+  function salvage(body) {
+    var open = body.indexOf('"ops"');
+    if (open < 0) return null;
+    var arr = body.indexOf("[", open);
+    if (arr < 0) return null;
+
+    var head = body.slice(0, arr + 1);
+    var depth = 0, inStr = false, esc = false, lastGood = -1;
+    for (var i = arr + 1; i < body.length; i++) {
+      var ch = body[i];
+      if (inStr) {
+        if (esc) esc = false;
+        else if (ch === "\\") esc = true;
+        else if (ch === '"') inStr = false;
+        continue;
+      }
+      if (ch === '"') inStr = true;
+      else if (ch === "{" || ch === "[") depth++;
+      else if (ch === "}" || ch === "]") {
+        depth--;
+        /* a complete op has just closed at depth 0 inside the array */
+        if (depth === 0 && ch === "}") lastGood = i;
+        if (depth < 0) break;
+      }
+    }
+    if (lastGood < 0) return null;
+
+    for (var cut = lastGood; cut > arr; cut--) {
+      if (body[cut] !== "}") continue;
+      try {
+        var spec = JSON.parse(head + body.slice(arr + 1, cut + 1) + "]}");
+        if (spec && Array.isArray(spec.ops) && spec.ops.length) {
+          spec.salvaged = true;
+          return spec;
+        }
+      } catch (e) { /* step back to the previous op and try again */ }
+    }
+    return null;
   }
 
   /* ---------- interpretation ---------- */
@@ -709,7 +782,7 @@
       nonce: opts.seed.toString(36)
     });
 
-    var got = await ask(p, opts, prompt, opts.tier || incrementalTier(opts.provider));
+    var got = await ask(p, opts, prompt, opts.tier || "balanced");
 
     S.pen({ color: pal.ink, width: 0.32, speed: 58, alpha: 1 });
     S.jit = 0.14;
@@ -730,7 +803,6 @@
   global.AI = {
     design: design,
     designStep: designStep,
-    incrementalTier: incrementalTier,
     MAX_ROUNDS: 8,
     interpret: interpret,
     TIERS: TIERS,

@@ -33,22 +33,24 @@
       quick: { model: "gemini-3.5-flash-lite", maxTokens: 24000 },
       balanced: { model: "gemini-3.7-flash", maxTokens: 36000 },
       deep: { model: "gemini-3.1-pro-preview", maxTokens: 56000 }
+    },
+    /* The gpt-5.6 family, ordered by measurement rather than by the names:
+       on one design each, luna took 23s for 109 ops, terra 26s, and sol 73s
+       for 154 ops and twice anyone's reasoning tokens. Moon, earth, sun. */
+    openai: {
+      quick: { model: "gpt-5.6-luna", maxTokens: 20000 },
+      balanced: { model: "gpt-5.6-terra", maxTokens: 28000, effort: "low" },
+      deep: { model: "gpt-5.6-sol", maxTokens: 40000, effort: "high" }
     }
   };
-
-  /* Incremental mode makes one call per element, so it uses the smallest model
-     in the family. Exception, measured rather than assumed: xai's quick model is
-     non-reasoning and cannot place a new element relative to the ones already on
-     the page — it piles every round into one scribble, while grok-4.3 running the
-     same loop draws a clean scene. Claude and Gemini are fine on quick. */
-  var INCREMENTAL = { anthropic: "quick", xai: "balanced", gemini: "quick" };
 
   /* Which env var holds each provider's key when running server-side. */
   var ENV_KEYS = {
     anthropic: "ANTHROPIC_API_KEY",
     xai: "XAI_API_KEY",
-    gemini: "GEMINI_API_KEY"
+    gemini: "GEMINI_API_KEY",
+    openai: "OPENAI_API_KEY"
   };
 
-  return { TIERS: TIERS, MODELS: MODELS, INCREMENTAL: INCREMENTAL, ENV_KEYS: ENV_KEYS };
+  return { TIERS: TIERS, MODELS: MODELS, ENV_KEYS: ENV_KEYS };
 });
