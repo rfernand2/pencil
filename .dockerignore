@@ -19,3 +19,6 @@ t.html
 t_flash.html
 t_grok.html
 ace.jpg
+
+# The icon generator; favicon.ico itself is checked in and shipped.
+tools/
