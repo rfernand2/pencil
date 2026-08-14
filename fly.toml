@@ -9,7 +9,7 @@
 # Built-in designer only, and costs nothing in API credit.
 
 app = "pencil-draw"
-primary_region = "sea"
+primary_region = "sjc"
 
 [build]
   dockerfile = "Dockerfile"

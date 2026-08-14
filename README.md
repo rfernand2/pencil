@@ -116,6 +116,42 @@ Delete the file and the app still works — the AI buttons simply don't appear.
 
 Gemini's thinking tokens count against `maxTokens`; if it stops early, raise it.
 
+## Deploying
+
+Live at **https://pencil-draw.fly.dev** · source at **github.com/rfernand2/pencil** (private).
+
+```
+fly deploy
+```
+
+`Dockerfile` and `fly.toml` are already set up: Node 22 Alpine, no dependencies, one
+`shared-cpu-1x` machine in `sjc` that scales to zero when nobody is using it, health-checked
+on `/healthz`.
+
+### Keys never ship to the browser
+
+`.gitignore` and `.dockerignore` both exclude `js/keys.local.js`, so it is in neither the
+repo nor the image, and `server.js` refuses to serve it from a deployed copy. The AI
+designers instead go through a small proxy — the browser posts a prompt to `/api/design`
+and the server calls the provider with a key held as a Fly secret.
+
+As deployed the app has **no secrets set**, so it shows only the Built-in designer and
+cannot spend a penny of API credit. To turn the AI designers on:
+
+```
+fly secrets set PENCIL_PASSWORD=pick-something
+fly secrets set ANTHROPIC_API_KEY=... XAI_API_KEY=... GEMINI_API_KEY=...
+```
+
+Set whichever providers you want; each one that has a key appears as a button. Setting
+secrets restarts the machine, and the client discovers what is available from
+`/api/providers` at startup.
+
+> ⚠️ A `.fly.dev` URL is public. Anyone who finds it and knows the password can spend your
+> API credit. `PENCIL_PASSWORD` is the gate; `PENCIL_RATE_LIMIT` (default 20 designs per
+> hour per IP address) is the backstop. The proxy also picks the model itself from the
+> Quick/Balanced/Deep table, so a caller cannot ask it for an expensive one.
+
 ## Other controls
 
 **Drawing speed** scales the animation (0.3×–6×). **Finish now** renders the rest instantly.
