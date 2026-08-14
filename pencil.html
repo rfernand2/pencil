@@ -111,7 +111,12 @@
     background: var(--panel-2); border: 1px solid var(--line);
     border-radius: 8px; padding: 9px 11px; margin-top: 8px;
   }
-  input[type=text]:focus { outline: none; border-color: var(--accent-2); }
+  input[type=password] {
+    width: 100%; font: inherit; color: var(--text);
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 8px; padding: 9px 11px;
+  }
+  input[type=text]:focus, input[type=password]:focus { outline: none; border-color: var(--accent-2); }
   input[type=range] { width: 100%; accent-color: var(--accent); }
 
   .row { display: flex; gap: 8px; }
@@ -130,7 +135,106 @@
   #status.ok { color: #9fd28a; }
 
   /* ---------- stage ---------- */
-  #stage { flex: 1; display: grid; place-items: center; padding: 20px; min-width: 0; }
+  #stage {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    gap: 14px; padding: 20px; min-width: 0;
+  }
+
+  /* ---------- tool tray ---------- */
+  #tray {
+    width: 44px; min-width: 44px;
+    align-self: center;
+    max-height: 100%;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 8px 4px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow-y: auto; overflow-x: hidden;
+  }
+  #tray .slot {
+    position: relative;
+    width: 34px; min-width: 34px; height: 74px; min-height: 74px;
+    padding: 0; border-radius: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    opacity: .5;
+    transition: transform .18s, opacity .18s, border-color .18s, background .18s;
+    display: grid; place-items: center;
+  }
+  #tray .slot canvas { display: block; }
+  #tray .slot.used { opacity: .82; }
+  #tray .slot.on {
+    opacity: 1;
+    transform: translateX(5px);
+    border-color: var(--accent);
+    background: #3a3222;
+    box-shadow: -2px 0 0 0 var(--accent) inset;
+  }
+  #tray .slot.ghost {
+    opacity: .3; background: transparent;
+    border-style: dashed; box-shadow: none;
+  }
+
+  /* ---------- collapsed sidebar rows ---------- */
+  .summary {
+    width: 100%; justify-content: flex-start; gap: 10px;
+    padding: 9px 11px; min-height: 54px; margin-bottom: 10px; text-align: left;
+  }
+  .summary img, .summary .ico {
+    width: 38px; min-width: 38px; height: 30px; border-radius: 5px;
+    object-fit: cover; background: var(--panel-2);
+    display: grid; place-items: center; color: var(--dim); font-size: 15px;
+  }
+  .summary .txt { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+  .summary .txt b { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--dim); font-weight: 600; }
+  .summary .txt small {
+    font-size: 13px; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .summary .chev { color: var(--dim); font-size: 15px; }
+
+  /* ---------- generic sheet (background / keywords / confirm) ---------- */
+  #sheet {
+    position: fixed; inset: 0; z-index: 60;
+    background: rgba(8,9,12,.76);
+    display: none; place-items: center; padding: 20px;
+  }
+  #sheet.show { display: grid; }
+  #sheetCard {
+    width: min(560px, 100%); max-height: min(86vh, 780px);
+    display: flex; flex-direction: column;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; box-shadow: 0 24px 70px rgba(0,0,0,.6);
+  }
+  #sheetCard.wide { width: min(760px, 100%); }
+  #sheetHead {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 16px; border-bottom: 1px solid var(--line);
+  }
+  #sheetHead h3 { font-size: 16px; font-weight: 650; flex: 1; }
+  #sheetBody { padding: 14px 16px; overflow-y: auto; }
+  #sheetBody p { color: var(--dim); font-size: 13px; margin-bottom: 10px; white-space: pre-line; }
+  #sheetFoot {
+    display: flex; gap: 8px; justify-content: flex-end;
+    padding: 12px 16px; border-top: 1px solid var(--line);
+  }
+  #sheetFoot button { min-width: 96px; }
+  #sheetFoot .danger { background: #5c2723; border-color: #874039; color: #ffd9d3; }
+  #sheetFoot .danger:hover { background: #74302a; }
+  .sheetTools { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .sheetTools button { flex: 1 1 auto; font-size: 12.5px; }
+  #sheetBody #picks { grid-template-columns: repeat(4, 1fr); }
+  #sheetBody #kw { margin-top: 10px; }
+
+  @media (max-width: 820px) {
+    #stage { flex-direction: column; }
+    #tray {
+      width: auto; min-width: 0; max-width: 100%;
+      flex-direction: row; align-self: stretch;
+      justify-content: center; overflow-x: auto; overflow-y: hidden;
+    }
+  }
   #frame { position: relative; line-height: 0; box-shadow: 0 18px 50px rgba(0,0,0,.55); border-radius: 3px; overflow: hidden; }
   #frame img { display: block; user-select: none; -webkit-user-drag: none; }
   #ink, #cur { position: absolute; left: 0; top: 0; pointer-events: none; }
@@ -263,32 +367,36 @@
   </header>
 
   <div id="scroll">
-    <section>
-      <div class="lbl">
-        <span>1 · Pick a picture</span>
-        <button class="btn" id="uploadBtn" style="font-size:11px;min-height:26px;padding:3px 9px;">Upload…</button>
-      </div>
-      <div id="picks"></div>
-      <input type="file" id="file" accept="image/*" hidden />
-      <button id="resetPics" style="width:100%;margin-top:8px;font-size:12px;min-height:30px">Reset to factory pictures</button>
-    </section>
+    <button class="summary" id="bgBtn" title="Choose the picture to draw on">
+      <img id="bgThumb" alt="" />
+      <span class="txt"><b>1 · Background</b><small id="bgName">loading…</small></span>
+      <span class="chev">›</span>
+    </button>
 
-    <section>
-      <div class="lbl">
-        <span>2 · Keywords</span>
-        <button class="btn" id="surprise" style="font-size:11px;min-height:26px;padding:3px 9px;">Surprise me</button>
-      </div>
-      <div id="chips"></div>
-      <input type="text" id="kw" placeholder="…or type your own, e.g. “a whale over the city”" />
-    </section>
+    <button class="summary" id="kwBtn" title="Choose what it should draw">
+      <span class="ico">✎</span>
+      <span class="txt"><b>2 · Keywords</b><small id="kwSummary">none — it'll surprise you</small></span>
+      <span class="chev">›</span>
+    </button>
 
-    <section>
+    <section style="margin-bottom:0">
       <div class="lbl"><span>Drawing speed</span><span id="speedVal">1.0×</span></div>
       <input type="range" id="speed" min="0.3" max="6" step="0.1" value="1.4" />
-      <div class="row" style="margin-top:10px">
-        <button id="regionBtn">Show drawing area</button>
-      </div>
     </section>
+  </div>
+
+  <!-- Live controls that live inside the popups; parked here when closed so
+       their ids stay unique and their handlers stay bound. -->
+  <div id="stash" hidden>
+    <button class="btn" id="uploadBtn">Upload a picture…</button>
+    <button id="resetPics">Reset to factory pictures</button>
+    <button id="regionBtn">Show drawing area</button>
+    <div id="picks"></div>
+    <input type="file" id="file" accept="image/*" hidden />
+    <button class="btn" id="surprise">Surprise me</button>
+    <button id="clearKw">Clear</button>
+    <div id="chips"></div>
+    <input type="text" id="kw" placeholder="…or type your own, e.g. “a whale over the city”" />
   </div>
 
   <div id="actions">
@@ -321,11 +429,23 @@
 </div>
 
 <div id="stage">
+  <div id="tray" aria-label="Tool tray"></div>
   <div id="frame">
     <img id="pic" alt="" />
     <canvas id="ink"></canvas>
     <canvas id="cur"></canvas>
     <div id="regionBox"></div>
+  </div>
+</div>
+
+<div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+  <div id="sheetCard">
+    <div id="sheetHead">
+      <h3 id="sheetTitle"></h3>
+      <button id="sheetX" class="icon" title="Close">✕</button>
+    </div>
+    <div id="sheetBody"></div>
+    <div id="sheetFoot"></div>
   </div>
 </div>
 
@@ -356,6 +476,7 @@
 </div>
 
 <script src="js/models.js"></script>
+<script src="js/tools.js"></script>
 <script src="js/store.js"></script>
 <script src="js/engine.js"></script>
 <script src="js/strokefont.js"></script>
@@ -389,6 +510,8 @@
 
   var player = new PX.Player({
     img: pic, ink: $("ink"), cur: $("cur"), frame: frame,
+    onTools: function (ids) { buildTray(ids); },
+    onTool: function (id) { highlightTool(id); },
     onProgress: function (p) { barEl.style.width = (p * 100).toFixed(1) + "%"; },
     onDone: function () {
       state.drawing = false;
@@ -412,6 +535,228 @@
     $("draw").textContent = b ? "…drawing" : "✎  Draw";
   }
 
+  /* ---------- sheets: one popup shell for backgrounds, keywords, confirms ---------- */
+
+  var stash = $("stash");
+  var sheetOpen = null;      // { onClose } while a sheet is up
+
+  function park(el) { if (el && el.parentNode !== stash) stash.appendChild(el); }
+
+  function openSheet(o) {
+    closeSheet();
+    $("sheetTitle").textContent = o.title;
+    $("sheetCard").classList.toggle("wide", !!o.wide);
+    var body = $("sheetBody"), foot = $("sheetFoot");
+    body.innerHTML = "";
+    foot.innerHTML = "";
+    if (o.build) o.build(body);
+    (o.buttons || []).forEach(function (b) {
+      var el = document.createElement("button");
+      el.textContent = b.label;
+      if (b.primary) el.className = "primary";
+      if (b.danger) el.className = "danger";
+      el.onclick = function () { if (b.onClick) b.onClick(); };
+      foot.appendChild(el);
+    });
+    sheetOpen = o;
+    $("sheet").classList.add("show");
+    var first = foot.querySelector("button") || $("sheetX");
+    if (first) first.focus();
+  }
+
+  function closeSheet() {
+    if (!sheetOpen) return;
+    var o = sheetOpen;
+    sheetOpen = null;
+    $("sheet").classList.remove("show");
+    if (o.onClose) o.onClose();
+    /* put the borrowed live controls back so their ids stay unique */
+    ["picks", "chips", "kw", "uploadBtn", "resetPics", "regionBtn", "surprise", "clearKw", "file"]
+      .forEach(function (id) { park($(id)); });
+    $("sheetBody").innerHTML = "";
+    $("sheetFoot").innerHTML = "";
+  }
+
+  $("sheetX").onclick = closeSheet;
+  $("sheet").onclick = function (e) { if (e.target === $("sheet")) closeSheet(); };
+
+  /* A confirm() that matches the rest of the app and never blocks the page. */
+  function askConfirm(title, message, okLabel, danger) {
+    return new Promise(function (resolve) {
+      var answered = false;
+      function done(v) { if (answered) return; answered = true; closeSheet(); resolve(v); }
+      openSheet({
+        title: title,
+        build: function (body) {
+          var p = document.createElement("p");
+          p.textContent = message;
+          p.style.color = "var(--text)";
+          body.appendChild(p);
+        },
+        buttons: [
+          { label: "Cancel", onClick: function () { done(false); } },
+          { label: okLabel || "OK", primary: !danger, danger: !!danger, onClick: function () { done(true); } }
+        ],
+        onClose: function () { if (!answered) { answered = true; resolve(false); } }
+      });
+    });
+  }
+
+  /* Deployed copies can sit behind a shared password so a public URL can't
+     spend the owner's API credit. */
+  function askPassword() {
+    return new Promise(function (resolve) {
+      var answered = false, input;
+      function done(v) { if (answered) return; answered = true; closeSheet(); resolve(v); }
+      openSheet({
+        title: "Access password",
+        build: function (body) {
+          var p = document.createElement("p");
+          p.textContent = "This copy asks for a password before it will spend the owner's API credit. " +
+            "The Built-in designer never needs one.";
+          body.appendChild(p);
+          input = document.createElement("input");
+          input.type = "password";
+          input.setAttribute("autocomplete", "current-password");
+          input.placeholder = "Password";
+          input.onkeydown = function (e) { if (e.key === "Enter") done(input.value.trim()); };
+          body.appendChild(input);
+          setTimeout(function () { input.focus(); }, 30);
+        },
+        buttons: [
+          { label: "Cancel", onClick: function () { done(""); } },
+          { label: "Unlock", primary: true, onClick: function () { done(input.value.trim()); } }
+        ],
+        onClose: function () { if (!answered) { answered = true; resolve(""); } }
+      });
+    });
+  }
+
+  /* ---------- tool tray ---------- */
+
+  var trayEl = $("tray");
+
+  /* Draw one tool into a small canvas, tip down, filling the slot. */
+  function trayIcon(toolId) {
+    var c = document.createElement("canvas");
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    var w = 30, h = 68;
+    c.width = w * dpr; c.height = h * dpr;
+    c.style.width = w + "px"; c.style.height = h + "px";
+    var g = c.getContext("2d");
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.translate(w / 2, 3);
+    TOOLS.paint(g, TOOLS.get(toolId), (h - 6) / 78);
+    return c;
+  }
+
+  /* An empty rack still reads as a rack, which beats a line of text. */
+  function trayPlaceholder() {
+    trayEl.innerHTML = "";
+    trayEl.title = "The tools this drawing uses appear here";
+    for (var i = 0; i < 4; i++) {
+      var d = document.createElement("div");
+      d.className = "slot ghost";
+      trayEl.appendChild(d);
+    }
+  }
+
+  function buildTray(ids) {
+    trayEl.innerHTML = "";
+    if (!ids || !ids.length) return trayPlaceholder();
+    ids.forEach(function (id) {
+      var tool = TOOLS.get(id);
+      var slot = document.createElement("div");
+      slot.className = "slot";
+      slot.dataset.tool = id;
+      slot.title = tool.name;
+      slot.appendChild(trayIcon(id));
+      trayEl.appendChild(slot);
+    });
+  }
+
+  function highlightTool(id) {
+    Array.prototype.forEach.call(trayEl.children, function (s) {
+      if (!s.dataset) return;
+      var on = s.dataset.tool === id;
+      s.classList.toggle("on", on);
+      if (on) s.classList.add("used");
+    });
+  }
+
+  /* Keep the picture from growing under the tray. */
+  function reserveForTray() {
+    var narrow = window.matchMedia("(max-width: 820px)").matches;
+    player.reserveX = narrow ? 0 : trayEl.offsetWidth + 14;
+    player.reserveY = narrow ? trayEl.offsetHeight + 14 : 0;
+  }
+
+  /* ---------- background & keyword popups ---------- */
+
+  function openBackgrounds() {
+    openSheet({
+      title: "Pick a background",
+      wide: true,
+      build: function (body) {
+        var tools = document.createElement("div");
+        tools.className = "sheetTools";
+        tools.appendChild($("uploadBtn"));
+        tools.appendChild($("regionBtn"));
+        tools.appendChild($("resetPics"));
+        body.appendChild(tools);
+        body.appendChild($("file"));
+        var hint = document.createElement("p");
+        hint.textContent = "Each picture has a large calm area; the drawing goes there. " +
+          "✕ hides a factory picture or deletes one of yours.";
+        body.appendChild(hint);
+        body.appendChild($("picks"));
+      },
+      buttons: [{ label: "Done", primary: true, onClick: closeSheet }]
+    });
+  }
+
+  function openKeywords() {
+    openSheet({
+      title: "Keywords",
+      build: function (body) {
+        var tools = document.createElement("div");
+        tools.className = "sheetTools";
+        tools.appendChild($("surprise"));
+        tools.appendChild($("clearKw"));
+        body.appendChild(tools);
+        var hint = document.createElement("p");
+        hint.textContent = "Tap any that fit, and add your own below. " +
+          "Anything not recognised gets hand-lettered into the drawing.";
+        body.appendChild(hint);
+        body.appendChild($("chips"));
+        body.appendChild($("kw"));
+      },
+      buttons: [{ label: "Done", primary: true, onClick: closeSheet }],
+      onClose: updateKeywordSummary
+    });
+    setTimeout(function () { $("kw").focus(); }, 30);
+  }
+
+  function updateBackgroundSummary() {
+    var s = state.surface;
+    $("bgName").textContent = s ? s.name : "none";
+    if (s) $("bgThumb").src = s.url;
+  }
+
+  function updateKeywordSummary() {
+    var kw = keywords();
+    $("kwSummary").textContent = kw || "none — it'll surprise you";
+  }
+
+  $("bgBtn").onclick = openBackgrounds;
+  $("kwBtn").onclick = openKeywords;
+  $("clearKw").onclick = function () {
+    state.chips = [];
+    Array.prototype.forEach.call($("chips").children, function (c) { c.classList.remove("on"); });
+    $("kw").value = "";
+    updateKeywordSummary();
+  };
+
   /* ---------- picture picker ---------- */
 
   var picks = $("picks");
@@ -427,9 +772,11 @@
     pic.onload = function () {
       state.surface.natW = pic.naturalWidth;
       state.surface.natH = pic.naturalHeight;
+      reserveForTray();
       player.layout();
       player.clear();
       drawRegionBox();
+      updateBackgroundSummary();
       if (note) say(note.text, note.kind);
       else say("Loaded “" + s.name + "”. Press Draw.");
     };
@@ -460,31 +807,47 @@
 
   /* Factory pictures are hidden (they can always come back); uploads are deleted. */
   function removeSurface(s) {
-    var msg = s.custom
-      ? "Delete “" + s.name + "” from this machine? This cannot be undone."
-      : "Hide “" + s.name + "”? “Reset to factory pictures” brings it back.";
-    if (!confirm(msg)) return;
-    var work = s.custom
-      ? STORE.deleteBackground(s.id)
-      : STORE.getPref("hiddenFactory", []).then(function (h) {
-        if (h.indexOf(s.id) < 0) h.push(s.id);
-        return STORE.setPref("hiddenFactory", h);
-      });
-    work.then(function () {
-      return buildSurfaces({
-        text: (s.custom ? "Deleted " : "Hid ") + "“" + s.name + "”." +
-          (s.custom ? "" : " Use “Reset to factory pictures” to bring it back.")
+    var reopen = !!sheetOpen;
+    askConfirm(
+      s.custom ? "Delete this picture?" : "Hide this picture?",
+      s.custom
+        ? "“" + s.name + "” will be removed from this machine. This cannot be undone."
+        : "“" + s.name + "” will be hidden.\n\n“Reset to factory pictures” brings it back.",
+      s.custom ? "Delete" : "Hide",
+      s.custom
+    ).then(function (yes) {
+      if (!yes) { if (reopen) openBackgrounds(); return; }
+      var work = s.custom
+        ? STORE.deleteBackground(s.id)
+        : STORE.getPref("hiddenFactory", []).then(function (h) {
+          if (h.indexOf(s.id) < 0) h.push(s.id);
+          return STORE.setPref("hiddenFactory", h);
+        });
+      return work.then(function () {
+        return buildSurfaces({
+          text: (s.custom ? "Deleted " : "Hid ") + "“" + s.name + "”." +
+            (s.custom ? "" : " Use “Reset to factory pictures” to bring it back.")
+        }).then(function () { if (reopen) openBackgrounds(); });
       });
     }).catch(function (e) { say(String(e.message || e), "err"); });
   }
 
   $("resetPics").onclick = function () {
+    var reopen = !!sheetOpen;
     STORE.listBackgrounds().then(function (mine) {
-      var msg = "Reset to the 10 factory pictures?\n\nThis un-hides every factory picture" +
-        (mine.length ? " and deletes your " + mine.length + " uploaded picture" + (mine.length > 1 ? "s" : "") + "." : ".");
-      if (!confirm(msg)) return null;
-      return STORE.setPref("hiddenFactory", []).then(STORE.clearBackgrounds).then(function () {
-        return buildSurfaces({ text: "Back to the 10 factory pictures.", kind: "ok" });
+      return askConfirm(
+        "Reset to factory pictures?",
+        "Every factory picture comes back." +
+        (mine.length
+          ? "\n\nYour " + mine.length + " uploaded picture" + (mine.length > 1 ? "s" : "") +
+            " will be deleted from this machine."
+          : ""),
+        "Reset", mine.length > 0
+      ).then(function (yes) {
+        if (!yes) { if (reopen) openBackgrounds(); return null; }
+        return STORE.setPref("hiddenFactory", []).then(STORE.clearBackgrounds).then(function () {
+          return buildSurfaces({ text: "Back to the 10 factory pictures.", kind: "ok" });
+        }).then(function () { if (reopen) openBackgrounds(); });
       });
     }).catch(function (e) { say(String(e.message || e), "err"); });
   };
@@ -674,6 +1037,7 @@
       var i = state.chips.indexOf(word);
       if (i >= 0) { state.chips.splice(i, 1); b.classList.remove("on"); }
       else { state.chips.push(word); b.classList.add("on"); }
+      updateKeywordSummary();
     };
     chipBox.appendChild(b);
   });
@@ -696,7 +1060,9 @@
       });
     }
     $("kw").value = "";
+    updateKeywordSummary();
   };
+  $("kw").addEventListener("input", updateKeywordSummary);
 
   /* ---------- designer selector ---------- */
 
@@ -715,17 +1081,19 @@
       var b = document.createElement("button");
       b.textContent = d.label;
       if (d.id === state.designer) b.classList.add("on");
-      b.onclick = function () {
-        if (d.id !== "local" && AI.needsAccessKey()) {
-          var k = prompt("This copy of Pencil asks for an access password before it will\n" +
-            "spend the owner's API credit.\n\nPassword:");
-          if (!k) { say("An access password is needed for the AI designers.", "err"); return; }
-          AI.setAccessKey(k.trim());
-        }
+      function choose() {
         state.designer = d.id;
         Array.prototype.forEach.call(box.children, function (c) { c.classList.remove("on"); });
         b.classList.add("on");
         refreshDepth();
+      }
+      b.onclick = function () {
+        if (d.id === "local" || !AI.needsAccessKey()) return choose();
+        askPassword().then(function (k) {
+          if (!k) { say("The AI designers need this copy's access password.", "err"); return; }
+          AI.setAccessKey(k);
+          choose();
+        });
       };
       box.appendChild(b);
     });
@@ -900,6 +1268,7 @@
   $("skip").onclick = function () { if (player.actions.length) player.finishNow(); };
   $("clear").onclick = function () {
     player.stop(); player.clear(); lastResult = null;
+    trayPlaceholder();
     barEl.style.width = "0%"; say("Cleared.");
   };
 
@@ -1125,14 +1494,19 @@
   }
 
   function deleteItems(ids) {
-    var what = ids.length === 1 ? "this drawing" : ids.length + " drawings";
-    if (!confirm("Delete " + what + " from this machine? This cannot be undone.")) return;
-    STORE.deleteDrawings(ids).then(function () {
-      gal.items = gal.items.filter(function (x) { return ids.indexOf(x.id) < 0; });
-      ids.forEach(function (k) { delete gal.sel[k]; });
-      if (ids.indexOf(gal.active) >= 0) gal.active = null;
-      renderGallery();
-      refreshGalleryCount();
+    var what = ids.length === 1 ? "this drawing" : "these " + ids.length + " drawings";
+    askConfirm("Delete from the gallery?",
+      "Deleting " + what + " from this machine cannot be undone.",
+      ids.length === 1 ? "Delete" : "Delete " + ids.length, true
+    ).then(function (yes) {
+      if (!yes) return;
+      return STORE.deleteDrawings(ids).then(function () {
+        gal.items = gal.items.filter(function (x) { return ids.indexOf(x.id) < 0; });
+        ids.forEach(function (k) { delete gal.sel[k]; });
+        if (ids.indexOf(gal.active) >= 0) gal.active = null;
+        renderGallery();
+        refreshGalleryCount();
+      });
     }).catch(function (e) { say(String(e.message || e), "err"); });
   }
 
@@ -1151,7 +1525,13 @@
     }
   });
 
-  $("kw").addEventListener("keydown", function (e) { if (e.key === "Enter") go(); });
+  $("kw").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { closeSheet(); go(); }
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && sheetOpen) closeSheet();
+  });
 
   /* ---------- resize ---------- */
 
@@ -1161,6 +1541,7 @@
     rt = setTimeout(function () {
       if (!state.surface || !pic.naturalWidth) return;
       var wasRunning = player.running;
+      reserveForTray();
       player.layout();
       if (wasRunning) { player.clear(); }
       else if (lastResult) { player.clear(); player.renderTo(player.inkCtx, player.W, player.H); }
@@ -1174,6 +1555,8 @@
     buildDesigners();
     if (proxied.length) console.log("Proxied designers:", proxied.join(", "));
   });
+  trayPlaceholder();
+  updateKeywordSummary();
   say("Preparing pictures…");
   setTimeout(function () {
     buildSurfaces().catch(function (e) {
