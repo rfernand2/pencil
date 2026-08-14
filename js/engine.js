@@ -228,7 +228,9 @@
       alpha: st.alpha,
       speed: st.speed * this.u,
       length: m.L,
-      cum: m.cum
+      cum: m.cum,
+      /* classified from the LOCAL width, before it is scaled into image % */
+      tool: global.TOOLS.classify(st.color, st.width).id
     });
     this._penAt = pts[pts.length - 1];
     return this;
@@ -318,7 +320,8 @@
     this.acts.push({
       type: "dot", x: p.x, y: p.y,
       r: r * this.u, color: st.color, alpha: st.alpha,
-      duration: (o && o.duration) || 0.05
+      duration: (o && o.duration) || 0.05,
+      tool: global.TOOLS.classify(st.color, st.width).id
     });
     this._penAt = { x: lx, y: ly };
     return this;
@@ -386,6 +389,51 @@
   };
 
   /* =========================================================================
+   * Tool changes
+   *
+   * A drawing switches implement ~100 times. Reaching into the tray for every
+   * one of those would add half a minute of watching nothing happen, so:
+   *   - the FIRST time a tool is used, the hand really goes and fetches it;
+   *   - after that the swap hides inside the pen-lift that was happening
+   *     anyway, and only costs time when there was no lift to hide in.
+   * ======================================================================= */
+
+  function annotateTools(actions) {
+    var out = [], order = [], seen = {}, cur = null;
+
+    for (var i = 0; i < actions.length; i++) {
+      var a = actions[i];
+      var isMark = a.type === "stroke" || a.type === "dot";
+
+      if (isMark && a.tool && a.tool !== cur) {
+        var first = !seen[a.tool];
+        if (first) { seen[a.tool] = true; order.push(a.tool); }
+
+        var x = a.type === "dot" ? a.x : a.points[0].x;
+        var y = a.type === "dot" ? a.y : a.points[0].y;
+        var prev = out[out.length - 1];
+
+        if (prev && prev.type === "move" && !prev.swapTo) {
+          prev.swapTo = a.tool;
+          prev.swapColor = a.color;
+          prev.fetch = first;
+          if (first) { prev.duration = Math.max(prev.duration, 0.62); prev.lift = 3; }
+        } else {
+          out.push({
+            type: "move", x: x, y: y,
+            duration: first ? 0.62 : 0.1,
+            lift: first ? 3 : 0.5,
+            swapTo: a.tool, swapColor: a.color, fetch: first
+          });
+        }
+        cur = a.tool;
+      }
+      out.push(a);
+    }
+    return { actions: out, tools: order };
+  }
+
+  /* =========================================================================
    * Player — animates an action list over an image.
    * ======================================================================= */
 
@@ -396,6 +444,14 @@
     this.frame = opts.frame;
     this.onProgress = opts.onProgress || function () {};
     this.onDone = opts.onDone || function () {};
+    this.onTools = opts.onTools || function () {};   // the tray for this drawing
+    this.onTool = opts.onTool || function () {};     // which one is in hand now
+    this.tools = [];
+    this.tool = null;
+    this.tipColor = null;
+    this.toolFade = 1;
+    this.reserveX = 0;
+    this.reserveY = 0;
     this.actions = [];
     this.W = 300; this.H = 400;
     this.actI = 0;
@@ -418,8 +474,9 @@
     var nw = img.naturalWidth || 1000;
     var nh = img.naturalHeight || 1000;
     var host = this.frame.parentNode;
-    var maxW = host.clientWidth - 8;
-    var maxH = host.clientHeight - 8;
+    /* the tool tray sits beside (or below) the picture and must not be covered */
+    var maxW = host.clientWidth - 8 - this.reserveX;
+    var maxH = host.clientHeight - 8 - this.reserveY;
     if (maxW <= 0) maxW = 600;
     if (maxH <= 0) maxH = 600;
     var s = Math.min(maxW / nw, maxH / nh);
@@ -458,7 +515,14 @@
 
   Player.prototype.play = function (actions) {
     this.stop();
-    this.actions = actions;
+    var ann = annotateTools(actions);
+    this.actions = ann.actions;
+    this.tools = ann.tools;
+    this.tool = null;
+    this.tipColor = null;
+    this.toolFade = 1;
+    this.onTools(ann.tools);
+    actions = this.actions;
     this.actI = 0;
     this.phase = 0;
     this._drawn = 0;
@@ -587,12 +651,48 @@
         dt -= step;
         var t = Math.min(1, this.phase);
         var e = t * t * (3 - 2 * t);
-        this.pencil.x = a._x0 + (a.x - a._x0) * e;
-        this.pencil.y = a._y0 + (a.y - a._y0) * e - Math.sin(t * Math.PI) * a.lift;
-        var ang = Math.atan2(a.y - a._y0, a.x - a._x0);
+        var px, py, ang;
+
+        if (a.fetch) {
+          /* out of frame to the tray, then back with the new tool in hand */
+          var vx = -7;
+          var vy = Math.max(10, Math.min(90, (a._y0 + a.y) / 2));
+          if (t < 0.5) {
+            var u = t / 0.5; u = u * u * (3 - 2 * u);
+            px = a._x0 + (vx - a._x0) * u;
+            py = a._y0 + (vy - a._y0) * u;
+            ang = Math.atan2(vy - a._y0, vx - a._x0);
+          } else {
+            var v = (t - 0.5) / 0.5; v = v * v * (3 - 2 * v);
+            px = vx + (a.x - vx) * v;
+            py = vy + (a.y - vy) * v;
+            ang = Math.atan2(a.y - vy, a.x - vx);
+          }
+        } else {
+          px = a._x0 + (a.x - a._x0) * e;
+          py = a._y0 + (a.y - a._y0) * e - Math.sin(t * Math.PI) * a.lift;
+          ang = Math.atan2(a.y - a._y0, a.x - a._x0);
+        }
+
+        this.pencil.x = px;
+        this.pencil.y = py;
         if (ang) this.pencil.angle = ang;
+
+        /* the handover happens at the halfway point, whichever kind of move */
+        if (a.swapTo) {
+          this.toolFade = Math.min(1, Math.abs(t - 0.5) * 2.4);
+          if (t >= 0.5 && this.tool !== a.swapTo) {
+            this.tool = a.swapTo;
+            this.tipColor = a.swapColor || null;
+            this.onTool(a.swapTo);
+          }
+        } else {
+          this.toolFade = 1;
+        }
+
         if (t >= 1) {
           this.pencil.x = a.x; this.pencil.y = a.y;
+          this.toolFade = 1;
           this._drawn += 0.25; this.actI++; this.phase = 0;
         }
         continue;
@@ -635,7 +735,9 @@
 
     if (this.curCtx) {
       this.curCtx.clearRect(0, 0, this.W, this.H);
-      if (this.showPencil) this._pencil(this.curCtx, this.pencil.x, this.pencil.y, this.pencil.angle);
+      if (this.showPencil && this.tool) {
+        this._sprite(this.curCtx, this.pencil.x, this.pencil.y, this.pencil.angle);
+      }
     }
     this.onProgress(Math.min(1, this._drawn / this._total));
 
@@ -650,68 +752,15 @@
     this.raf = requestAnimationFrame(this._loop);
   };
 
-  /* The pencil sprite, lifted straight from t_grok.html. */
-  Player.prototype._pencil = function (ctx, x, y, angle) {
-    var tint = this.pencilTint;
+  /* The tool currently in hand. The barrel comes from the tool, the tip from the
+   * exact colour being laid down, so the sprite always matches the mark. */
+  Player.prototype._sprite = function (ctx, x, y, angle) {
+    var tool = global.TOOLS.get(this.tool);
     ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, this.toolFade));
     ctx.translate(this._X(x), this._Y(y));
     ctx.rotate(angle + Math.PI / 2);
-    var s = this.W * 0.00215;
-    ctx.scale(s, s);
-
-    ctx.save();
-    ctx.translate(3.2, 2.4);
-    ctx.fillStyle = "rgba(0,0,0,0.16)";
-    ctx.beginPath();
-    ctx.moveTo(0, 0); ctx.lineTo(-6.8, 22); ctx.lineTo(-6.8, 77);
-    ctx.lineTo(6.8, 77); ctx.lineTo(6.8, 22); ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-
-    ctx.beginPath();
-    ctx.moveTo(0, 0); ctx.lineTo(-4.3, 14); ctx.lineTo(4.3, 14); ctx.closePath();
-    ctx.fillStyle = tint ? "#efe7dc" : "#4a4a4a";
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.moveTo(0, 0); ctx.lineTo(-1.55, 5.2); ctx.lineTo(1.55, 5.2); ctx.closePath();
-    ctx.fillStyle = tint || "#1a1a1a";
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.moveTo(-4.3, 14); ctx.lineTo(-6.7, 22); ctx.lineTo(6.7, 22); ctx.lineTo(4.3, 14);
-    ctx.closePath();
-    ctx.fillStyle = "#e8c57a";
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(0, 14); ctx.lineTo(-1.2, 22); ctx.lineTo(1.2, 22); ctx.closePath();
-    ctx.fillStyle = "#d7b066";
-    ctx.fill();
-
-    var body = tint ? "#dfe6ee" : "#f1d03c";
-    var edge = tint ? "#c3ccd6" : "#e0bf2a";
-    ctx.fillStyle = body;
-    ctx.fillRect(-6.7, 22, 13.4, 38);
-    ctx.fillStyle = "rgba(255,255,255,0.28)";
-    ctx.fillRect(-5.2, 23, 2.1, 36);
-    ctx.fillStyle = edge;
-    ctx.fillRect(-6.7, 22, 1.5, 38);
-    ctx.fillRect(5.2, 22, 1.5, 38);
-
-    ctx.fillStyle = "#c8ccd2";
-    ctx.fillRect(-6.9, 60, 13.8, 8);
-    ctx.fillStyle = "#9aa1aa";
-    ctx.fillRect(-6.9, 61.6, 13.8, 1.15);
-    ctx.fillRect(-6.9, 65.6, 13.8, 1.15);
-
-    ctx.fillStyle = "#e898a6";
-    ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(-6.5, 68, 13, 9.2, 2.2);
-    else ctx.rect(-6.5, 68, 13, 9.2);
-    ctx.fill();
-    ctx.fillStyle = "rgba(255,255,255,0.25)";
-    ctx.fillRect(-4.6, 69, 2, 6);
-
+    global.TOOLS.paint(ctx, tool, this.W * 0.00215, this.tipColor || tool.lead);
     ctx.restore();
   };
 
