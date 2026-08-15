@@ -28,6 +28,7 @@ Everything above that is new:
 | `js/compose.js` | Picture features + keywords → a plan → actions |
 | `js/ai.js` | Optional: an LLM designs the strokes instead, at run time |
 | `js/store.js` | Everything kept on this machine — gallery, uploads, preferences |
+| `js/export.js` | Writing a drawing out as a standalone page that replays it |
 | `server.js` / `run.bat` | Serving it locally (and, later, the deployed container) |
 
 ### Coordinates
@@ -267,6 +268,26 @@ secrets restarts the machine, and the client discovers what is available from
 > API credit. `PENCIL_PASSWORD` is the gate; `PENCIL_RATE_LIMIT` (default 20 designs per
 > hour per IP address) is the backstop. The proxy also picks the model itself from the
 > Quick/Balanced/Deep table, so a caller cannot ask it for an expensive one.
+
+## Saving a drawing that still draws
+
+**Save HTML** writes the drawing out as a standalone page that replays it — the pencil
+travels the strokes again, in order, at whatever speed you set. Open it by double-clicking
+the file: no server, no network, nothing beside it. The picture goes in as a data URL and
+the action list as JSON, and a typical drawing lands around 80–100KB.
+
+The exported page carries the same **Replay**, **Finish now** and **Save PNG** controls, a
+speed slider, and a line saying which model drew it on which picture.
+
+Gallery drawings keep the same option — the detail panel has **PNG · Replay page · Delete**.
+Saving to the gallery stores the action list alongside the JPEG (about 30KB at two decimal
+places, next to a few hundred for the image), and the picture is resolved by id at export
+time, so it works even for a factory picture you have since hidden. Anything saved before
+this existed has the button disabled with a note saying to redraw it.
+
+`js/export.js` holds the exporter. The player inside it is a deliberate port of the
+*pacing* half of `js/engine.js` — measure / atLen / portion / advance — and nothing else. It
+replays; it does not compose, so it needs no `Sketch`, no motifs, no riffs, no tool tray.
 
 ## Other controls
 

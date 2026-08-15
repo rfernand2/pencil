@@ -444,8 +444,9 @@
     </div>
     <div class="row">
       <button id="save">Save PNG</button>
-      <button id="keep">★ Save to gallery</button>
+      <button id="saveHtml" title="A standalone page that replays the drawing">Save HTML</button>
     </div>
+    <button id="keep">★ Save to gallery</button>
     <button id="openGal">Gallery</button>
     <label class="chkrow">
       <input type="checkbox" id="autosave" />
@@ -513,6 +514,7 @@
 <script src="js/backgrounds.js"></script>
 <script src="js/compose.js"></script>
 <script src="js/ai.js"></script>
+<script src="js/export.js"></script>
 <script src="js/keys.local.js" onerror="window.PENCIL_KEYS=window.PENCIL_KEYS||{}"></script>
 <script>
 (function () {
@@ -1470,6 +1472,33 @@
     say("Saved PNG.", "ok");
   };
 
+  /* A standalone page that replays the drawing. The picture goes in as a data
+     URL and the actions as JSON, so the file works with no network and no
+     other files beside it. */
+  function downloadHTML(opts) {
+    var html = EXPORT.toHTML(opts);
+    var blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "pencil-" + slug(opts.title) + ".html";
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+    return Math.round(html.length / 1024);
+  }
+
+  $("saveHtml").onclick = function () {
+    if (!state.surface || !player.actions.length) { say("Draw something first.", "err"); return; }
+    var s = state.surface;
+    var kb = downloadHTML({
+      title: state.lastPlan || "Pencil drawing",
+      bgUrl: s.url, natW: s.natW, natH: s.natH,
+      actions: player.actions,
+      meta: lastMeta || { surfaceName: s.name }
+    });
+    say("Saved a replayable page (" + kb + " KB). Open it in any browser.", "ok");
+  };
+
   /* ---------- gallery ---------- */
 
   function keepDrawing(quiet) {
@@ -1489,6 +1518,10 @@
         surfaceName: m.surfaceName || s.name, keywords: m.keywords || "",
         scene: m.scene, palette: m.palette, ops: m.ops, dropped: m.dropped,
         mode: m.mode, rounds: m.rounds, elements: m.elements,
+        /* Enough to replay it later as a standalone page. Trimmed to two
+           decimals, which averages ~30KB — nothing beside the JPEG. */
+        surfaceId: s.id, actions: EXPORT.trim(player.actions),
+        natW: s.natW, natH: s.natH,
         w: full.width, h: full.height, size: blob.size,
         thumb: thumb, image: blob
       });
@@ -1630,13 +1663,55 @@
     row2.className = "row";
     row2.style.marginTop = "14px";
     var dbtn = document.createElement("button");
-    dbtn.textContent = "Download";
+    dbtn.textContent = "PNG";
     dbtn.onclick = function () { downloadItems([it.id]); };
+    var hbtn = document.createElement("button");
+    hbtn.textContent = "Replay page";
+    if (!it.actions || !it.actions.length) {
+      hbtn.disabled = true;
+      hbtn.title = "Saved before replay export existed — redraw it to get one";
+    } else {
+      hbtn.title = "A standalone page that replays this drawing";
+      hbtn.onclick = function () { exportRecord(it); };
+    }
     var xbtn = document.createElement("button");
     xbtn.textContent = "Delete";
     xbtn.onclick = function () { deleteItems([it.id]); };
-    row2.appendChild(dbtn); row2.appendChild(xbtn);
+    row2.appendChild(dbtn); row2.appendChild(hbtn); row2.appendChild(xbtn);
     side.appendChild(row2);
+  }
+
+  /* The picture a saved drawing was made on, even if it has since been hidden.
+     An upload that was deleted cannot come back, so this can resolve to null. */
+  function surfaceById(id) {
+    var bg = BACKGROUNDS.filter(function (b) { return b.id === id; })[0];
+    if (bg) {
+      return Promise.resolve({ name: bg.name, url: buildBackground(bg), natW: bg.w, natH: bg.h });
+    }
+    return STORE.listBackgrounds().then(function (mine) {
+      var b = (mine || []).filter(function (x) { return x.id === id; })[0];
+      return b ? { name: b.name, url: b.url, natW: b.natW, natH: b.natH } : null;
+    }).catch(function () { return null; });
+  }
+
+  function exportRecord(it) {
+    $("galMeta").textContent = "Building the replay page…";
+    surfaceById(it.surfaceId).then(function (s) {
+      if (!s) {
+        $("galMeta").textContent = "Can't replay “" + it.title +
+          "” — the picture it was drawn on has been deleted.";
+        return;
+      }
+      var kb = downloadHTML({
+        title: it.title,
+        bgUrl: s.url,
+        natW: it.natW || s.natW,
+        natH: it.natH || s.natH,
+        actions: it.actions,
+        meta: it
+      });
+      $("galMeta").textContent = "Saved a replayable page (" + kb + " KB).";
+    });
   }
 
   function updateGalButtons() {
