@@ -111,6 +111,20 @@
     return { L: L || 0.001, cum: cum };
   }
 
+  /* Arc lengths are derivable from the points and bulky to keep, so they are
+     dropped when a drawing is stored. Put them back before playing one. */
+  function remeasure(actions, ar) {
+    for (var i = 0; i < actions.length; i++) {
+      var a = actions[i];
+      if (a.type !== "stroke") continue;
+      if (a.cum && a.length !== undefined) continue;
+      var m = measure(a.points, ar);
+      a.length = m.L;
+      a.cum = m.cum;
+    }
+    return actions;
+  }
+
   function atLen(pts, cum, dist) {
     var total = cum[cum.length - 1];
     if (dist <= 0) {
@@ -550,6 +564,40 @@
     this._start();
   };
 
+  /* Put an existing action list on the player without re-annotating it. The
+     list already carries its tool-swap moves, so running annotateTools over it
+     again would add a second set. Used for replaying, and for drawings coming
+     back out of the gallery. */
+  Player.prototype.setActions = function (actions) {
+    this.stop();
+    var order = [], seen = {};
+    for (var i = 0; i < actions.length; i++) {
+      var t = actions[i].tool;
+      if (t && !seen[t]) { seen[t] = true; order.push(t); }
+    }
+    this.actions = actions;
+    this.tools = order;
+    this._toolState = null;
+    this.base = 0;
+    this.actI = 0;
+    this.phase = 0;
+  };
+
+  /* Draw the whole thing again from the first stroke. */
+  Player.prototype.replay = function () {
+    if (!this.actions.length) return false;
+    this.stop();
+    this.base = 0;
+    this.tool = null;
+    this.tipColor = null;
+    this.toolFade = 1;
+    this.onTools(this.tools);
+    this.clear();
+    this.pencil.x = 6; this.pencil.y = 4; this.pencil.angle = 0.9;
+    this._start();
+    return true;
+  };
+
   /* Animate from `base` to the end. The progress bar measures the current
      batch, not the whole accumulated drawing — otherwise it would crawl
      backwards every time a round added to the total. */
@@ -802,6 +850,7 @@
     quadPts: quadPts,
     cubicPts: cubicPts,
     Sketch: Sketch,
-    Player: Player
+    Player: Player,
+    remeasure: remeasure
   };
 })(window);

@@ -525,9 +525,9 @@
   var pic = $("pic"), frame = $("frame"), stage = $("stage");
   var statusEl = $("status"), barEl = $("bar").firstElementChild;
 
-  var CHIPS = ["tree", "cat", "ocean", "mountains", "stars", "flowers", "birds", "city",
-    "moon", "rocket", "coffee", "music", "rain", "whale", "castle", "bicycle",
-    "garden", "snow", "butterfly", "lighthouse", "dragon", "cosmos", "cozy", "magic"];
+  var CHIPS = ["face", "crowd", "tree", "cat", "ocean", "mountains", "stars", "flowers",
+    "birds", "city", "moon", "rocket", "coffee", "music", "rain", "whale", "castle",
+    "bicycle", "garden", "snow", "butterfly", "lighthouse", "dragon", "cosmos", "cozy", "magic"];
 
   var state = {
     surface: null,        // {name, tone, region, url, natW, natH}
@@ -820,7 +820,7 @@
 
   /* `note` wins over the default message — the picture loads asynchronously, so
      whatever the caller wanted to say has to be said after onload or it is lost. */
-  function selectSurface(s, el, note) {
+  function selectSurface(s, el, note, after) {
     state.surface = s;
     Array.prototype.forEach.call(picks.children, function (c) { c.classList.remove("sel"); });
     if (el) el.classList.add("sel");
@@ -837,6 +837,9 @@
       updateBackgroundSummary();
       if (note) say(note.text, note.kind);
       else say("Loaded “" + s.name + "”. Press Draw.");
+      /* anything that needs the picture measured — replaying a saved drawing
+         onto it, for instance — has to wait for this */
+      if (after) after();
     };
     pic.src = s.url;
   }
@@ -1436,7 +1439,19 @@
   }
 
   $("draw").onclick = go;
-  $("again").onclick = go;
+
+  /* Draws the same drawing again rather than designing a new one — pressing
+     Draw is what re-rolls, since every run takes a fresh seed. */
+  function replayCurrent() {
+    if (state.drawing) return;
+    if (!player.actions.length) { say("Nothing to replay yet — press Draw.", "err"); return; }
+    setBusy(true);
+    state.drawing = true;
+    barEl.style.width = "0%";
+    player.replay();
+    say("Replaying" + (state.lastPlan ? " — " + state.lastPlan : "") + "…");
+  }
+  $("again").onclick = replayCurrent;
   $("skip").onclick = function () { if (player.actions.length) player.finishNow(); };
   $("clear").onclick = function () {
     player.stop(); releaseAnimation(); player.clear(); lastResult = null;
@@ -1663,23 +1678,40 @@
     var row2 = document.createElement("div");
     row2.className = "row";
     row2.style.marginTop = "14px";
-    var dbtn = document.createElement("button");
-    dbtn.textContent = "PNG";
-    dbtn.onclick = function () { downloadItems([it.id]); };
+    var replayable = !!(it.actions && it.actions.length);
+    var why = "Saved before replay existed — redraw it to get one";
+
+    var rbtn = document.createElement("button");
+    rbtn.textContent = "▶ Replay";
+    if (replayable) {
+      rbtn.title = "Put this back on the page and draw it again";
+      rbtn.onclick = function () { replayRecord(it); };
+    } else { rbtn.disabled = true; rbtn.title = why; }
+
     var hbtn = document.createElement("button");
-    hbtn.textContent = "Replay page";
-    if (!it.actions || !it.actions.length) {
-      hbtn.disabled = true;
-      hbtn.title = "Saved before replay export existed — redraw it to get one";
-    } else {
-      hbtn.title = "A standalone page that replays this drawing";
+    hbtn.textContent = "Save HTML";
+    if (replayable) {
+      hbtn.title = "Download a standalone page that replays this drawing";
       hbtn.onclick = function () { exportRecord(it); };
-    }
+    } else { hbtn.disabled = true; hbtn.title = why; }
+
+    var dbtn = document.createElement("button");
+    dbtn.textContent = "Save PNG";
+    dbtn.onclick = function () { downloadItems([it.id]); };
+
     var xbtn = document.createElement("button");
     xbtn.textContent = "Delete";
     xbtn.onclick = function () { deleteItems([it.id]); };
-    row2.appendChild(dbtn); row2.appendChild(hbtn); row2.appendChild(xbtn);
+
+    row2.appendChild(rbtn); row2.appendChild(hbtn);
     side.appendChild(row2);
+
+    /* four buttons is one row too many at this width */
+    var row3 = document.createElement("div");
+    row3.className = "row";
+    row3.style.marginTop = "8px";
+    row3.appendChild(dbtn); row3.appendChild(xbtn);
+    side.appendChild(row3);
   }
 
   /* The picture a saved drawing was made on, even if it has since been hidden.
@@ -1687,22 +1719,29 @@
   function surfaceById(id) {
     var bg = BACKGROUNDS.filter(function (b) { return b.id === id; })[0];
     if (bg) {
-      return Promise.resolve({ name: bg.name, url: buildBackground(bg), natW: bg.w, natH: bg.h });
+      return Promise.resolve({
+        id: bg.id, name: bg.name, tone: bg.tone, region: bg.region, features: bg.features || [],
+        url: buildBackground(bg), natW: bg.w, natH: bg.h, custom: false
+      });
     }
     return STORE.listBackgrounds().then(function (mine) {
       var b = (mine || []).filter(function (x) { return x.id === id; })[0];
-      return b ? { name: b.name, url: b.url, natW: b.natW, natH: b.natH } : null;
+      return b ? {
+        id: b.id, name: b.name, tone: b.tone, region: b.region, features: b.features || [],
+        url: b.url, natW: b.natW, natH: b.natH, custom: true
+      } : null;
     }).catch(function () { return null; });
+  }
+
+  function missingPicture(it) {
+    $("galMeta").textContent = "Can't replay “" + it.title +
+      "” — the picture it was drawn on has been deleted.";
   }
 
   function exportRecord(it) {
     $("galMeta").textContent = "Building the replay page…";
     surfaceById(it.surfaceId).then(function (s) {
-      if (!s) {
-        $("galMeta").textContent = "Can't replay “" + it.title +
-          "” — the picture it was drawn on has been deleted.";
-        return;
-      }
+      if (!s) return missingPicture(it);
       var kb = downloadHTML({
         title: it.title,
         bgUrl: s.url,
@@ -1712,6 +1751,32 @@
         meta: it
       });
       $("galMeta").textContent = "Saved a replayable page (" + kb + " KB).";
+    });
+  }
+
+  /* Put a saved drawing back on the main canvas and draw it again. The stored
+     actions lost their arc lengths on the way into storage, so they are
+     measured again against this picture's aspect before playing. */
+  function replayRecord(it) {
+    surfaceById(it.surfaceId).then(function (s) {
+      if (!s) return missingPicture(it);
+      $("gal").classList.remove("show");
+      var el = null;
+      Array.prototype.forEach.call(picks.children, function (c) {
+        if (c._surface && c._surface.id === s.id) el = c;
+      });
+      selectSurface(s, el, { text: "Replaying “" + it.title + "”…" }, function () {
+        var acts = PX.remeasure(it.actions, (it.natH || s.natH) / (it.natW || s.natW));
+        player.setActions(acts);
+        lastResult = { actions: acts, title: it.title };
+        lastMeta = it;
+        state.lastPlan = it.title;
+        savedThis = true;             /* it is already in the gallery */
+        state.drawing = true;
+        setBusy(true);
+        barEl.style.width = "0%";
+        player.replay();
+      });
     });
   }
 

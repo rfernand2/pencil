@@ -305,11 +305,14 @@ the action list as JSON, and a typical drawing lands around 80–100KB.
 The exported page carries the same **Replay**, **Finish now** and **Save PNG** controls, a
 speed slider, and a line saying which model drew it on which picture.
 
-Gallery drawings keep the same option — the detail panel has **PNG · Replay page · Delete**.
+Gallery drawings get **▶ Replay · Save HTML · Save PNG · Delete**. **Replay** brings the
+drawing back onto the main page — its own picture and all, even if you have since moved to
+another one — and draws it again there; **Save HTML** downloads the standalone page.
+
 Saving to the gallery stores the action list alongside the JPEG (about 30KB at two decimal
-places, next to a few hundred for the image), and the picture is resolved by id at export
-time, so it works even for a factory picture you have since hidden. Anything saved before
-this existed has the button disabled with a note saying to redraw it.
+places, next to a few hundred for the image), and the picture is resolved by id, so both
+work even for a factory picture you have since hidden. Anything saved before this existed
+has both buttons disabled with a note saying to redraw it.
 
 `js/export.js` holds the exporter. The player inside it is a deliberate port of the
 *pacing* half of `js/engine.js` — measure / atLen / portion / advance — and nothing else. It
@@ -319,8 +322,8 @@ replays; it does not compose, so it needs no `Sketch`, no motifs, no riffs, no t
 
 **Drawing speed** scales the animation (0.3×–6×). **Finish now** renders the rest instantly.
 **Surprise me** clears the keywords, which hands the idea back to the picture.
-**Redraw** re-rolls the same settings into a different drawing — every press uses a fresh
-seed, so no two drawings are alike. **Save PNG** composites the artwork onto the picture at
+**Redraw** draws the same drawing again, stroke by stroke, without asking anyone to design
+a new one — pressing **Draw** is what re-rolls, since every run takes a fresh seed. **Save PNG** composites the artwork onto the picture at
 its full resolution, not at screen size.
 
 ## Credits and licence
