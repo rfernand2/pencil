@@ -91,7 +91,10 @@
     border: 2px solid transparent; background: var(--panel-2); cursor: pointer; padding: 0;
     min-height: 0;
   }
-  .pick img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* contain, not cover: every picture shown whole at its own aspect ratio, so
+     you are choosing between pictures rather than between cropped middles. The
+     tile matte fills whatever the letterboxing leaves. */
+  .pick img { width: 100%; height: 100%; object-fit: contain; display: block; }
   .pick.sel { border-color: var(--accent); }
   .pick .cap {
     position: absolute; left: 0; right: 0; bottom: 0;
