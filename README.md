@@ -21,7 +21,7 @@ Everything above that is new:
 | File | What it does |
 | --- | --- |
 | `js/engine.js` | The action list, the `Sketch` drawing vocabulary, the animation player, PNG re-render |
-| `js/backgrounds.js` | The eleven pictures, drawn procedurally onto a canvas; each declares its white-space rectangle |
+| `js/backgrounds.js` | The fifteen pictures, drawn procedurally onto a canvas; each declares its white-space rectangle |
 | `js/motifs.js` | 52 hand-coded motifs (trees, cats, lighthouses, mandalas…) with tags for keyword matching |
 | `js/strokefont.js` | A single-stroke alphabet, so the pencil can hand-letter a word |
 | `js/riffs.js` | 23 ways to build on a feature of the picture — the heart of it |
@@ -39,13 +39,14 @@ image percentages; the player maps those to pixels at whatever size the picture 
 
 ## Using the picture as the idea
 
-This is the whole point, and it comes from the post the project started with — several
+This is the whole point, and it comes from the post the project started with:
+[**Ann's post**](https://x.com/ann_nnng/status/2088234665287270643), in which several
 models were handed an ace of clubs and asked to *"be creative and draw inside the card,
 using the card as inspo"*. Drawing something unrelated in the blank middle misses it.
 
 So every picture declares its **features**: the club pip, a coffee ring, the ruled lines,
-a fold crease, the hills on the horizon, a wax seal, the blank canvas in a frame. 31 of
-them across the eleven pictures, each with a weight saying how interesting it is to build on —
+a fold crease, the hills on the horizon, a wax seal, the blank canvas in a frame. 43 of
+them across the fifteen pictures, each with a weight saying how interesting it is to build on —
 the card's pip beats the card's border even though the border is far bigger.
 
 `js/riffs.js` then holds ways to build on a feature, keyed by what kind of thing it is:
@@ -67,12 +68,22 @@ The AI designers get the same information: the prompt lists what is printed on t
 with coordinates, and asks the model to build on one of them so the result *could not have
 been drawn on any other picture*.
 
-## The eleven pictures
+## The fifteen pictures
 
 Each was chosen (and drawn) for having a large, calm area to draw into: the ace of clubs
 and the ace of diamonds, a taped sketchbook page, a ruled notebook, a vintage postcard, a
 linen napkin on a dark desk, sky over hills, a snowfield, a framed blank canvas, a kraft
 envelope, and a blueprint sheet. The blueprint is dark, so the pencil switches to white.
+
+Four of them are there for their **scaffolding** rather than their calm — structure odd
+enough that it asks a question:
+
+| Picture | What it hands you |
+| --- | --- |
+| **Window light on a wall** | A skewed patch of sunlight with the glazing bars laid across it — a lit stage, or a window to climb through |
+| **Torn paper** | A ragged rip straight across the picture: a mountain ridge, a coastline, a saw, a row of teeth |
+| **Admission ticket** | A barcode is a row of uprights — a skyline, a fence, a pipe organ — and a perforation is a line asking to be crossed |
+| **Ink blot** | The oldest creative prompt there is: an accident that is already almost something |
 
 Uploaded pictures have no declared features, so they get a free-standing drawing.
 
@@ -236,13 +247,17 @@ repo nor the image, and `server.js` refuses to serve it from a deployed copy. Th
 designers instead go through a small proxy — the browser posts a prompt to `/api/design`
 and the server calls the provider with a key held as a Fly secret.
 
-As deployed the app has **no secrets set**, so it shows only the Built-in designer and
-cannot spend a penny of API credit. To turn the AI designers on:
+The live demo **does have all four keys set, and no password**, so its only protection is
+the rate limit. That is a deliberate choice for a public demo, not an oversight — but it is
+the wrong default for a fork. Set a password on yours:
 
 ```
 fly secrets set PENCIL_PASSWORD=pick-something
 fly secrets set ANTHROPIC_API_KEY=... XAI_API_KEY=... GEMINI_API_KEY=... OPENAI_API_KEY=...
 ```
+
+With no keys set at all, the app still works — it simply offers the Built-in designer only,
+and cannot spend a penny.
 
 Set whichever providers you want; each one that has a key appears as a button. Setting
 secrets restarts the machine, and the client discovers what is available from
@@ -260,3 +275,12 @@ secrets restarts the machine, and the client discovers what is available from
 **Redraw** re-rolls the same settings into a different drawing — every press uses a fresh
 seed, so no two drawings are alike. **Save PNG** composites the artwork onto the picture at
 its full resolution, not at screen size.
+
+## Credits and licence
+
+Inspired by [Ann's post](https://x.com/ann_nnng/status/2088234665287270643) — models given
+an ace of clubs and asked to be creative *inside* the card. That post is the whole brief:
+build on what is already on the picture rather than beside it.
+
+Released under the [MIT licence](LICENSE). The pictures, motifs and riffs are drawn in code
+in this repository, so there are no third-party image assets to attribute.

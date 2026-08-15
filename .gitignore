@@ -19,3 +19,8 @@ npm-debug.log*
 # Local scratch files
 _*.html
 *.tmp
+
+# A third-party stock photo of a playing card, kept locally as the original
+# reference. Not used by the app -- the cards are drawn in code -- and not
+# ours to publish under MIT.
+ace.jpg

@@ -84,11 +84,15 @@
       function club(cx, cy, s) {
         var r = s * 0.27;
         g.fillStyle = "#15120f";
-        g.beginPath();
-        g.arc(cx, cy - r, r, 0, Math.PI * 2);
-        g.arc(cx - r * 0.94, cy + r * 0.38, r, 0, Math.PI * 2);
-        g.arc(cx + r * 0.94, cy + r * 0.38, r, 0, Math.PI * 2);
-        g.fill();
+        /* One lobe per path. Three arcs in a single path get joined by straight
+           lines, and those extra crossings flip the nonzero winding inside the
+           overlap — which bit a white wedge out of the big centre pip. */
+        [[cx, cy - r], [cx - r * 0.94, cy + r * 0.38], [cx + r * 0.94, cy + r * 0.38]]
+          .forEach(function (p) {
+            g.beginPath();
+            g.arc(p[0], p[1], r, 0, Math.PI * 2);
+            g.fill();
+          });
         g.beginPath();
         g.moveTo(cx - r * 0.2, cy + r * 0.45);
         g.quadraticCurveTo(cx - r * 0.2, cy + r * 1.15, cx - r * 0.66, cy + r * 2.0);
@@ -103,7 +107,9 @@
       club(m + 62, m + 158, 40);
       /* The big centre pip is the thing worth drawing on — a canopy, a balloon,
          a clover patch. Without it the card is just a blank rectangle. */
-      club(w / 2, h * 0.44, 132);
+      /* Sized to match the diamond's pip, and to make the declared r: 11
+         feature radius honest — it was drawn at about 7.7%. */
+      club(w / 2, h * 0.44, 176);
       g.save();
       g.translate(w - m - 62, h - m - 40); g.rotate(Math.PI);
       g.font = "bold 76px Georgia, serif";
@@ -615,6 +621,276 @@
         g.beginPath(); g.moveTo(px, 78); g.lineTo(px + d * 14, 72); g.lineTo(px + d * 14, 84); g.closePath();
         g.fillStyle = "rgba(255,255,255,0.45)"; g.fill();
       });
+    }
+  });
+
+  /* 12 — sunlight through a window, thrown across a plaster wall -----------
+     The light patch is a stage: a lit rectangle with the glazing bars laid
+     across it, asking to be treated as a window you can put something behind. */
+  B.push({
+    id: "window", name: "Window light on a wall", w: 1300, h: 950, tone: "light",
+    region: { x: 24, y: 26, w: 52, h: 46 },
+    features: [
+      { id: "light", kind: "frame", x: 20, y: 18, w: 60, h: 62, weight: 3.2, label: "the patch of sunlight", note: "a bright skewed patch of sunlight thrown on the wall" },
+      { id: "bars", kind: "edge", x1: 22, y1: 49, x2: 78, y2: 52, weight: 2, label: "the window bar shadow", note: "the shadow of the window's glazing bars crossing the light" },
+      { id: "skirting", kind: "edge", x1: 0, y1: 87, x2: 100, y2: 87, weight: 1.3, label: "the skirting line", note: "the line where the wall meets the skirting board" }
+    ],
+    render: function (g, w, h) {
+      var lg = g.createLinearGradient(0, 0, w * 0.3, h);
+      lg.addColorStop(0, "#cfc6b6"); lg.addColorStop(0.5, "#c4b9a7"); lg.addColorStop(1, "#b3a795");
+      g.fillStyle = lg; g.fillRect(0, 0, w, h);
+      grain(g, w, h, 9000, 0.05);
+
+      /* the lit quadrilateral, skewed the way a low sun throws it */
+      var P = [[w * 0.20, h * 0.16], [w * 0.79, h * 0.21], [w * 0.83, h * 0.80], [w * 0.24, h * 0.75]];
+      if (g.filter !== undefined) g.filter = "blur(7px)";
+      g.beginPath();
+      g.moveTo(P[0][0], P[0][1]);
+      for (var i = 1; i < 4; i++) g.lineTo(P[i][0], P[i][1]);
+      g.closePath();
+      var wg = g.createLinearGradient(w * 0.2, h * 0.16, w * 0.83, h * 0.8);
+      wg.addColorStop(0, "rgba(255,247,225,0.92)");
+      wg.addColorStop(1, "rgba(255,240,208,0.72)");
+      g.fillStyle = wg; g.fill();
+      if (g.filter !== undefined) g.filter = "none";
+
+      /* glazing bars: the wall showing through where the frame blocked the sun */
+      function bar(ax, ay, bx, by, thick) {
+        if (g.filter !== undefined) g.filter = "blur(4px)";
+        g.strokeStyle = "rgba(150,138,120,0.55)";
+        g.lineWidth = thick;
+        g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke();
+        if (g.filter !== undefined) g.filter = "none";
+      }
+      bar(w * 0.215, h * 0.485, w * 0.815, h * 0.525, 26);
+      bar(w * 0.505, h * 0.183, w * 0.535, h * 0.775, 22);
+
+      /* skirting board and the shadow it casts up the wall */
+      g.fillStyle = "rgba(120,108,92,0.30)";
+      g.fillRect(0, h * 0.855, w, 6);
+      g.fillStyle = "#a2937e";
+      g.fillRect(0, h * 0.87, w, h * 0.13);
+      g.fillStyle = "rgba(255,255,255,0.20)";
+      g.fillRect(0, h * 0.87, w, 5);
+
+      /* a nail, because a bare wall is duller than a wall someone has used */
+      g.fillStyle = "rgba(90,80,68,0.55)";
+      g.beginPath(); g.arc(w * 0.12, h * 0.30, 5, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = "rgba(90,80,68,0.35)"; g.lineWidth = 3;
+      g.beginPath(); g.moveTo(w * 0.12, h * 0.305); g.lineTo(w * 0.128, h * 0.335); g.stroke();
+    }
+  });
+
+  /* 13 — a torn sheet over a dark desk -------------------------------------
+     The rip is the point: a jagged ridge across the picture that reads as
+     mountains, a coastline, a saw, a set of teeth — whatever it is given. */
+  B.push({
+    id: "torn", name: "Torn paper", w: 1300, h: 950, tone: "light",
+    region: { x: 8, y: 46, w: 84, h: 46 },
+    features: [
+      { id: "tear", kind: "spikes", x: 0, y: 26, w: 100, h: 12, weight: 3.2, label: "the torn edge", note: "the ragged torn edge of the paper running right across the picture" },
+      { id: "shadow", kind: "edge", x1: 0, y1: 38, x2: 100, y2: 36, weight: 1.4, label: "the shadow under the tear", note: "the shadow the torn edge casts on the paper" },
+      { id: "curl", kind: "corner", x: 92, y: 92, angle: 0.5, weight: 0.9, label: "the curled corner", note: "the bottom-right corner of the sheet curling up" }
+    ],
+    render: function (g, w, h) {
+      /* the desk showing above the tear */
+      var dg = g.createLinearGradient(0, 0, 0, h * 0.4);
+      dg.addColorStop(0, "#3b3129"); dg.addColorStop(1, "#4a3e33");
+      g.fillStyle = dg; g.fillRect(0, 0, w, h * 0.4);
+      grain(g, w, h * 0.4, 3000, 0.06, true);
+
+      /* one seeded walk, reused so the paper, its shadow and its fibres agree */
+      var r = rnd(31337), y0 = h * 0.30, pts = [];
+      for (var x = -20; x <= w + 20; x += 18) {
+        /* two scales of wobble plus the odd tall peak — a real tear has a few
+           big flaps, not an even sawtooth */
+        var peak = r() < 0.09 ? -26 - r() * 34 : 0;
+        pts.push([x, y0 + (r() - 0.5) * 34 + Math.sin(x / 130) * 18 + Math.sin(x / 47) * 9 + peak]);
+      }
+      function tearPath() {
+        g.beginPath();
+        g.moveTo(pts[0][0], pts[0][1]);
+        for (var i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]);
+        g.lineTo(w + 20, h + 20); g.lineTo(-20, h + 20); g.closePath();
+      }
+
+      shadow(g, function () {
+        tearPath();
+        g.fillStyle = "#f6f1e4"; g.fill();
+      }, 26, -10, "rgba(0,0,0,0.5)");
+
+      g.save();
+      tearPath(); g.clip();
+      paperFill(g, w, h, "#fbf7ec", "#efe7d6");
+      grain(g, w, h, 7000, 0.05);
+      /* torn fibres: a pale fuzz just inside the rip */
+      for (var k = 0; k < pts.length; k++) {
+        var p = pts[k];
+        g.strokeStyle = "rgba(255,255,255," + (0.35 + r() * 0.45).toFixed(2) + ")";
+        g.lineWidth = 1 + r() * 2;
+        g.beginPath();
+        g.moveTo(p[0], p[1]);
+        g.lineTo(p[0] + (r() - 0.5) * 14, p[1] + 4 + r() * 13);
+        g.stroke();
+      }
+      /* the shadow the lifted edge throws down the page */
+      var sg = g.createLinearGradient(0, y0 - 10, 0, y0 + 62);
+      sg.addColorStop(0, "rgba(90,74,54,0.30)"); sg.addColorStop(1, "rgba(90,74,54,0)");
+      g.fillStyle = sg; g.fillRect(0, y0 - 30, w, 100);
+      g.restore();
+
+      /* the corner turning up off the desk */
+      g.save();
+      g.beginPath();
+      g.moveTo(w, h * 0.86); g.quadraticCurveTo(w * 0.955, h * 0.95, w * 0.90, h);
+      g.lineTo(w, h); g.closePath();
+      g.fillStyle = "#3f342b"; g.fill();
+      g.beginPath();
+      g.moveTo(w * 0.995, h * 0.865); g.quadraticCurveTo(w * 0.95, h * 0.945, w * 0.905, h * 0.995);
+      g.strokeStyle = "rgba(255,255,255,0.5)"; g.lineWidth = 3; g.stroke();
+      g.restore();
+    }
+  });
+
+  /* 14 — an old admission ticket -------------------------------------------
+     A barcode is a row of uprights: a skyline, a fence, a forest, a bar chart.
+     The perforation is a line asking to be crossed. */
+  B.push({
+    id: "ticket", name: "Admission ticket", w: 1400, h: 900, tone: "light",
+    region: { x: 33, y: 22, w: 55, h: 44 },
+    features: [
+      { id: "barcode", kind: "spikes", x: 36, y: 70, w: 48, h: 16, weight: 2.8, label: "the barcode", note: "a block of black barcode bars standing in a row" },
+      { id: "perf", kind: "edge", x1: 27, y1: 8, x2: 27, y2: 92, weight: 2, label: "the perforation line", note: "the dotted perforation line where the stub tears off" },
+      { id: "border", kind: "frame", x: 5, y: 7, w: 90, h: 86, weight: 1, label: "the ticket border", note: "the printed border running round the ticket" }
+    ],
+    render: function (g, w, h) {
+      g.fillStyle = "#2b2723"; g.fillRect(0, 0, w, h);
+      var m = 26;
+      shadow(g, function () {
+        roundRect(g, m, m, w - m * 2, h - m * 2, 14);
+        g.fillStyle = "#f3e6c8"; g.fill();
+      }, 30, 12);
+
+      g.save();
+      roundRect(g, m, m, w - m * 2, h - m * 2, 14); g.clip();
+      var tg = g.createLinearGradient(0, 0, w * 0.5, h);
+      tg.addColorStop(0, "#f6ead0"); tg.addColorStop(1, "#e8d8b4");
+      g.fillStyle = tg; g.fillRect(0, 0, w, h);
+      grain(g, w, h, 7000, 0.07);
+
+      /* printed border */
+      g.strokeStyle = "#8c6a3f"; g.lineWidth = 3;
+      g.strokeRect(m + 24, m + 24, w - (m + 24) * 2, h - (m + 24) * 2);
+      g.lineWidth = 1;
+      g.strokeRect(m + 32, m + 32, w - (m + 32) * 2, h - (m + 32) * 2);
+
+      /* perforation: holes punched through, so the stub could come away */
+      var px = w * 0.27;
+      for (var y = m + 18; y < h - m - 10; y += 22) {
+        g.fillStyle = "#cbb68d";
+        g.beginPath(); g.arc(px, y, 5, 0, Math.PI * 2); g.fill();
+        g.fillStyle = "rgba(255,255,255,0.6)";
+        g.beginPath(); g.arc(px - 1, y - 1, 2.4, 0, Math.PI * 2); g.fill();
+      }
+
+      /* the stub, printed the other way up */
+      g.save();
+      g.translate(w * 0.145, h * 0.5); g.rotate(-Math.PI / 2);
+      g.fillStyle = "#8c6a3f";
+      g.font = "600 34px Georgia, serif"; g.textAlign = "center"; g.textBaseline = "middle";
+      g.fillText("ADMIT ONE", 0, -18);
+      g.font = "22px Georgia, serif";
+      g.fillText("No. 0413", 0, 18);
+      g.restore();
+
+      /* barcode */
+      var r = rnd(8642), bx = w * 0.36, by = h * 0.70;
+      g.fillStyle = "#241f1a";
+      for (var i = 0; i < 46; i++) {
+        var bw = 3 + Math.round(r() * 7);
+        g.fillRect(bx, by, bw, h * 0.15);
+        bx += bw + 3 + Math.round(r() * 5);
+        if (bx > w * 0.84) break;
+      }
+      g.fillStyle = "#5d4a32";
+      g.font = "18px Consolas, monospace"; g.textAlign = "left"; g.textBaseline = "top";
+      g.fillText("0 413 88217 6", w * 0.36, by + h * 0.155);
+
+      /* a punch hole through the ticket, already used once */
+      g.fillStyle = "#2b2723";
+      g.beginPath(); g.arc(w * 0.90, h * 0.16, 13, 0, Math.PI * 2); g.fill();
+      g.restore();
+    }
+  });
+
+  /* 15 — a spilled ink blot -------------------------------------------------
+     The oldest creative prompt there is: an accidental shape that is already
+     almost something. A pond, a planet, a beast, a shadow, a continent. */
+  B.push({
+    id: "blot", name: "Ink blot", w: 1200, h: 1000, tone: "light",
+    region: { x: 8, y: 8, w: 84, h: 40 },
+    features: [
+      { id: "blot", kind: "disc", x: 47, y: 68, r: 17, weight: 3.2, label: "the ink blot", note: "a big spilled black ink blot with tendrils running off it" },
+      { id: "spatter", kind: "motif", x: 76, y: 47, r: 4, weight: 1.2, label: "the spatter", note: "a scatter of small ink droplets thrown off the blot" },
+      { id: "deckle", kind: "edge", x1: 0, y1: 91, x2: 100, y2: 90, weight: 0.8, label: "the deckle edge", note: "the torn deckle edge along the bottom of the page" }
+    ],
+    render: function (g, w, h) {
+      paperFill(g, w, h, "#fdfaf1", "#f0e9d8");
+      grain(g, w, h, 8000, 0.05);
+
+      var r = rnd(24680), cx = w * 0.47, cy = h * 0.68, R = h * 0.20;
+
+      /* the blot: a wobbling radial polygon, so no two lobes match. The same
+         edge() is used to launch the tendrils, or they float free of it. */
+      function edge(a) {
+        return R * (0.72 + 0.42 * Math.sin(a * 3 + 1.1) + 0.20 * Math.sin(a * 7));
+      }
+      g.fillStyle = "#14110f";
+      g.beginPath();
+      for (var a = 0; a <= Math.PI * 2 + 0.001; a += Math.PI / 40) {
+        var e = edge(a) * (1 + r() * 0.09);
+        var x = cx + Math.cos(a) * e;
+        var y = cy + Math.sin(a) * e * 0.86;
+        if (a === 0) g.moveTo(x, y); else g.lineTo(x, y);
+      }
+      g.closePath(); g.fill();
+
+      /* tendrils running off it, the way ink actually travels on paper */
+      for (var t = 0; t < 7; t++) {
+        var ang = r() * Math.PI * 2, len = R * (0.5 + r() * 1.1);
+        var er = edge(ang) * 0.92;
+        var sx = cx + Math.cos(ang) * er, sy = cy + Math.sin(ang) * er * 0.86;
+        g.strokeStyle = "#14110f";
+        g.lineWidth = 2 + r() * 9;
+        g.lineCap = "round";
+        g.beginPath();
+        g.moveTo(sx, sy);
+        g.quadraticCurveTo(
+          sx + Math.cos(ang + 0.5) * len * 0.6, sy + Math.sin(ang + 0.5) * len * 0.6,
+          sx + Math.cos(ang) * len, sy + Math.sin(ang) * len);
+        g.stroke();
+      }
+
+      /* droplets thrown clear of it */
+      for (var d = 0; d < 26; d++) {
+        var dx = cx + (r() - 0.5) * w * 0.95, dy = cy + (r() - 0.62) * h * 0.85;
+        var rad = 1.5 + r() * r() * 13;
+        g.fillStyle = "rgba(20,17,15," + (0.5 + r() * 0.5).toFixed(2) + ")";
+        g.beginPath(); g.ellipse(dx, dy, rad, rad * (0.7 + r() * 0.5), r() * 3, 0, Math.PI * 2); g.fill();
+      }
+
+      /* a faint halo where the ink soaked outward before it dried */
+      var hg = g.createRadialGradient(cx, cy, R * 0.9, cx, cy, R * 1.5);
+      hg.addColorStop(0, "rgba(60,50,44,0.20)"); hg.addColorStop(1, "rgba(60,50,44,0)");
+      g.fillStyle = hg;
+      g.beginPath(); g.ellipse(cx, cy, R * 1.5, R * 1.35, 0, 0, Math.PI * 2); g.fill();
+
+      /* deckle edge along the bottom */
+      g.beginPath();
+      g.moveTo(0, h);
+      for (var x2 = 0; x2 <= w; x2 += 16) g.lineTo(x2, h * 0.905 + (r() - 0.5) * 14);
+      g.lineTo(w, h); g.closePath();
+      g.fillStyle = "#ddd2bb"; g.fill();
     }
   });
 

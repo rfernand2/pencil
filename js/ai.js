@@ -81,12 +81,21 @@
           (ctx.hasImage ? " (you can see them in the image too)" : "") + ":",
           ctx.features.map(function (f) { return "  - " + f.desc; }).join("\n"),
           "",
-          "This is the whole point of the drawing. Choose one of them and build on it so the",
-          "result could not have been drawn on any other picture. Extend it, re-read it as",
-          "something else, let your drawing grow out of it or lean on it. For instance a round",
-          "stain becomes a sun, a balloon or a wheel; a printed emblem sprouts a trunk and",
-          "becomes a tree; ruled lines become a sea with a boat riding one of them, or a stave",
-          "with notes sitting on it; a strong edge becomes a horizon, a washing line, a tightrope.",
+          "This is the whole point of the drawing. Pick ONE of them and make it into something",
+          "it is not. The test: if your drawing could be lifted onto a different picture and",
+          "still make sense, you have decorated instead of answered, and it has failed.",
+          "",
+          "Re-read the thing, don't garnish it. A round stain is not 'a place to put a sun' —",
+          "it IS the sun, or the wheel of a bicycle someone is riding, or a porthole with a fish",
+          "looking in, or the moon a wolf is howling at. A printed emblem sprouts a trunk and is",
+          "a tree; ruled lines become the sea and a boat rides one of them; a torn edge becomes",
+          "a mountain range with a climber on it, or a row of teeth, or a city skyline; a patch",
+          "of light becomes a window someone is climbing through; a barcode becomes a forest, a",
+          "fence, a pipe organ. Commit to the reading — draw the whole idea, not a hint of it.",
+          "",
+          "Push past your first thought. The obvious reading of a feature is usually the dullest",
+          "one; take the second or third idea, the one that made you pause. Surprise is the",
+          "point. Wit is welcome. A scene with something happening in it beats a still object.",
           "Do not simply place a picture in the empty space and ignore what is there."
         ].join("\n")
         : "Nothing is printed on this surface, so the drawing is free-standing.",
@@ -182,7 +191,11 @@
       ctx.round === 1
         ? "This is round 1: draw the MAIN SUBJECT, in outline, and nothing else. Not a background,\n" +
         "not a texture, not a shadow — the thing the picture is about. Make it big enough to carry\n" +
-        "the drawing and put it where it works with what is already printed on the surface."
+        "the drawing.\n" +
+        "Take your subject FROM the surface: find the strongest thing already printed on it and\n" +
+        "re-read it as something else, so your drawing could not have been made on any other\n" +
+        "picture. Not a sun beside the stain — the stain IS the sun. Push past the obvious\n" +
+        "reading to the second or third one."
         : "Add exactly ONE more element, of a kind you have NOT drawn yet. Pick from:\n" +
         "  - a second subject or companion that relates to the first (a person, animal, bird, boat…)\n" +
         "  - the setting it sits in: ground, horizon, water, a building, branches\n" +
