@@ -259,9 +259,16 @@ const server = http.createServer((req, res) => {
       rateLimit: RATE_LIMIT
     });
   }
-  /* Never serve the local key file from a deployed copy. */
-  if (pathname === "/js/keys.local.js" && enabledProviders().length) {
-    return send(res, 404, "Not found", { "content-type": "text/plain" });
+  /* Never serve the local key file from a deployed copy — but don't 404 it
+     either. The page always asks for it, and a missing script is logged as a
+     red error in the console, which reads as a fault when it is the intended
+     state. Answer with an empty script instead: nothing of the real file is
+     sent, and the console stays clean. The file is only served when it exists
+     AND no server secrets are set, i.e. when running locally. */
+  if (pathname === "/js/keys.local.js" &&
+    (enabledProviders().length || !fs.existsSync(path.join(ROOT, "js", "keys.local.js")))) {
+    return send(res, 200, "/* No local keys on this copy — the server proxies instead. */\n",
+      { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" });
   }
 
   /* Resolve inside ROOT — nothing above it is reachable, however the URL is spelled. */
