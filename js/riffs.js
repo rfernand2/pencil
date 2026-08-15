@@ -599,6 +599,47 @@
 
   /* ---------------- lookup ---------------- */
 
+  /* ================= faces: the two posts, put together ==================
+     Ann's brief is to build on what is already printed; Mannay's is that a
+     face is a handful of random parts. So: give the thing on the picture a
+     face. The outline is already there — only the features get drawn. */
+
+  riff({
+    id: "faceIt", kinds: ["disc", "motif"],
+    tags: ["face", "faces", "person", "people", "someone", "portrait", "doodle", "alive", "funny"],
+    story: "gave %s a face",
+    draw: function (S, f, pal) {
+      var r = f.r || Math.max(f.w || 0, f.h || 0) / 2 || 10;
+      /* Drawing dark ink onto a dark pip or blot puts the face where nobody
+         can see it, so the ink flips to chalk when the thing is dark. */
+      var p = f.dark
+        ? Object.assign({}, pal, { ink: "#f7f3e8", ink2: "#ded8c8", soft: "#cfc8b8" })
+        : pal;
+      /* the features are scaled to the thing they land on, not to the region */
+      global.FACES.featuresOnly(S, f.x, f.y, r * 1.8, p);
+    }
+  });
+
+  riff({
+    id: "crowdAround", kinds: ["disc", "motif", "frame", "edge"],
+    tags: ["crowd", "people", "faces", "audience", "everyone", "watching", "queue", "doodles"],
+    story: "drew a crowd watching %s",
+    draw: function (S, f, pal) {
+      var rnd = S.rnd;
+      var r = f.r || Math.max(f.w || 0, f.h || 0) / 2 || 10;
+      var cx = f.x !== undefined ? f.x : (f.x1 + f.x2) / 2;
+      var cy = f.y !== undefined ? f.y : (f.y1 + f.y2) / 2;
+      /* a ring of onlookers, all facing whatever it is */
+      var n = 7 + ((rnd() * 4) | 0);
+      for (var i = 0; i < n; i++) {
+        var a = (i / n) * Math.PI * 2 + rnd() * 0.3;
+        var d = r * (1.9 + rnd() * 0.9);
+        global.FACES.face(S, cx + Math.cos(a) * d, cy + Math.sin(a) * d * 0.75,
+          r * (0.55 + rnd() * 0.3), pal);
+      }
+    }
+  });
+
   var byKind = {};
   R.forEach(function (r) {
     r.kinds.forEach(function (k) {

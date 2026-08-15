@@ -194,6 +194,8 @@
          tell it is near an edge and build inward instead of off the page. */
       var out = {
         id: f.id, kind: f.kind, note: f.note, label: f.label || f.note || f.id,
+        /* dark features need light ink drawn onto them, not the page's dark ink */
+        dark: !!f.dark,
         pctX: f.x !== undefined ? f.x : (f.x1 + f.x2) / 2,
         pctY: f.y !== undefined ? f.y : (f.y1 + f.y2) / 2
       };

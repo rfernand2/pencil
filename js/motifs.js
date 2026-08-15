@@ -1039,6 +1039,22 @@
     }
   });
 
+  /* Generated rather than drawn — see js/faces.js. Registered here so the
+     composer's keyword matching and the AI's motif list both reach it. */
+  def("face", {
+    tags: ["face", "faces", "head", "person", "people", "portrait", "doodle", "someone", "man", "woman"],
+    anchor: "center", slot: "any", size: [8, 26],
+    draw: function (S, x, y, s, pal) { global.FACES.face(S, x, y, s, pal); }
+  });
+
+  def("crowd", {
+    tags: ["crowd", "faces", "people", "everyone", "queue", "audience", "party", "village", "doodles"],
+    anchor: "center", slot: "any", size: [18, 50],
+    draw: function (S, x, y, s, pal) {
+      global.FACES.crowd(S, x - s * 0.5, y - s * 0.5, s, s, s * 0.30, pal);
+    }
+  });
+
   /* ---------- lookup ---------- */
 
   var TAG_INDEX = {};

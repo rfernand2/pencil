@@ -22,7 +22,8 @@ Everything above that is new:
 | --- | --- |
 | `js/engine.js` | The action list, the `Sketch` drawing vocabulary, the animation player, PNG re-render |
 | `js/backgrounds.js` | The fifteen pictures, drawn procedurally onto a canvas; each declares its white-space rectangle |
-| `js/motifs.js` | 52 hand-coded motifs (trees, cats, lighthouses, mandalas…) with tags for keyword matching |
+| `js/motifs.js` | 54 hand-coded motifs (trees, cats, lighthouses, mandalas…) with tags for keyword matching |
+| `js/faces.js` | Doodled heads, generated rather than drawn — no two alike |
 | `js/strokefont.js` | A single-stroke alphabet, so the pencil can hand-letter a word |
 | `js/riffs.js` | 23 ways to build on a feature of the picture — the heart of it |
 | `js/compose.js` | Picture features + keywords → a plan → actions |
@@ -269,6 +270,31 @@ secrets restarts the machine, and the client discovers what is available from
 > hour per IP address) is the backstop. The proxy also picks the model itself from the
 > Quick/Balanced/Deep table, so a caller cannot ask it for an expensive one.
 
+## Faces
+
+`js/faces.js` generates doodled heads instead of storing them, after
+[Mannay's *"you can just draw faces with javascript"*](https://x.com/mannay/status/2087522034351796728)
+([and this one](https://x.com/mannay/status/2087567438778884522)) — a page of little biro
+heads, no two the same. Each face picks from a handful of variants per part: five head
+shapes, seven kinds of hair (cropped, spikes, curls, a parting, a cap, a headband, bald),
+seven pairs of eyes (dots, rings, shut, a wink, glasses, an eyepatch), four noses, five
+mouths, and then sometimes a moustache, stubble, a beard, freckles or a collar. Eyes are
+deliberately mismatched about a third of the time.
+
+It reaches the drawing three ways:
+
+- as the **`face`** and **`crowd`** motifs, so "face", "people", "portrait" or "audience" in
+  the keywords bring them in, and so the AI designers can place them too;
+- as the **`crowdAround`** riff — a ring of onlookers, all turned toward whatever the
+  picture already has on it;
+- and as the **`faceIt`** riff, which is where the project's two inspirations meet. Ann's
+  brief is to build on what is printed; Mannay's is that a face is a few random parts. So
+  `faceIt` draws *only* the features — eyes, nose, mouth — straight onto the club pip, the
+  coffee ring, the ink blot. The outline is already there; the picture is the head.
+
+Features declared `dark: true` get chalk-coloured ink instead, or the face would be drawn
+in black on a black pip and nobody would ever see it.
+
 ## Saving a drawing that still draws
 
 **Save HTML** writes the drawing out as a standalone page that replays it — the pencil
@@ -303,5 +329,9 @@ Inspired by [Ann's post](https://x.com/ann_nnng/status/2088234665287270643) — 
 an ace of clubs and asked to be creative *inside* the card. That post is the whole brief:
 build on what is already on the picture rather than beside it.
 
-Released under the [MIT licence](LICENSE). The pictures, motifs and riffs are drawn in code
-in this repository, so there are no third-party image assets to attribute.
+Also inspired by [Mannay's coding doodles](https://x.com/mannay/status/2087522034351796728)
+— *"you can just draw faces with javascript"* — which is where `js/faces.js` comes from, and
+[this follow-up](https://x.com/mannay/status/2087567438778884522).
+
+Released under the [MIT licence](LICENSE). The pictures, motifs, faces and riffs are all
+drawn in code in this repository, so there are no third-party image assets to attribute.

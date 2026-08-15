@@ -60,7 +60,7 @@
     id: "card", name: "Ace of clubs", w: 900, h: 1260, tone: "light",
     region: { x: 13, y: 15, w: 74, h: 70 },
     features: [
-      {id: "pip", kind: "motif", x: 50, y: 44, r: 11, weight: 3.2, label: "the club pip", note: "a big black club pip printed in the middle of the card"},
+      {id: "pip", kind: "motif", x: 50, y: 44, r: 11, weight: 3.2, dark: true, label: "the club pip", note: "a big black club pip printed in the middle of the card"},
       {id: "corner", kind: "motif", x: 11, y: 8, r: 4.5, weight: 0.5, label: "the corner pip", note: "the small A and club printed in the top corner"},
       {id: "border", kind: "frame", x: 6, y: 4, w: 88, h: 92, weight: 0.7, label: "the card border", note: "the rounded double border of the card"}
     ],
@@ -125,7 +125,7 @@
     id: "diamond", name: "Ace of diamonds", w: 900, h: 1260, tone: "light",
     region: { x: 13, y: 15, w: 74, h: 70 },
     features: [
-      { id: "pip", kind: "motif", x: 50, y: 44, r: 10.5, weight: 3.2, label: "the diamond pip", note: "a big red diamond pip printed in the middle of the card" },
+      { id: "pip", kind: "motif", x: 50, y: 44, r: 10.5, weight: 3.2, dark: true, label: "the diamond pip", note: "a big red diamond pip printed in the middle of the card" },
       { id: "corner", kind: "motif", x: 11, y: 8, r: 4.5, weight: 0.5, label: "the corner pip", note: "the small red A and diamond printed in the top corner" },
       { id: "border", kind: "frame", x: 6, y: 4, w: 88, h: 92, weight: 0.7, label: "the card border", note: "the rounded double border of the card" }
     ],
@@ -759,7 +759,7 @@
     id: "ticket", name: "Admission ticket", w: 1400, h: 900, tone: "light",
     region: { x: 33, y: 22, w: 55, h: 44 },
     features: [
-      { id: "barcode", kind: "spikes", x: 36, y: 70, w: 48, h: 16, weight: 2.8, label: "the barcode", note: "a block of black barcode bars standing in a row" },
+      { id: "barcode", kind: "spikes", x: 36, y: 70, w: 48, h: 16, weight: 2.8, dark: true, label: "the barcode", note: "a block of black barcode bars standing in a row" },
       { id: "perf", kind: "edge", x1: 27, y1: 8, x2: 27, y2: 92, weight: 2, label: "the perforation line", note: "the dotted perforation line where the stub tears off" },
       { id: "border", kind: "frame", x: 5, y: 7, w: 90, h: 86, weight: 1, label: "the ticket border", note: "the printed border running round the ticket" }
     ],
@@ -830,7 +830,7 @@
     id: "blot", name: "Ink blot", w: 1200, h: 1000, tone: "light",
     region: { x: 8, y: 8, w: 84, h: 40 },
     features: [
-      { id: "blot", kind: "disc", x: 47, y: 68, r: 17, weight: 3.2, label: "the ink blot", note: "a big spilled black ink blot with tendrils running off it" },
+      { id: "blot", kind: "disc", x: 47, y: 68, r: 17, weight: 3.2, dark: true, label: "the ink blot", note: "a big spilled black ink blot with tendrils running off it" },
       { id: "spatter", kind: "motif", x: 76, y: 47, r: 4, weight: 1.2, label: "the spatter", note: "a scatter of small ink droplets thrown off the blot" },
       { id: "deckle", kind: "edge", x1: 0, y1: 91, x2: 100, y2: 90, weight: 0.8, label: "the deckle edge", note: "the torn deckle edge along the bottom of the page" }
     ],
